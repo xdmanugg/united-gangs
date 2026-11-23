@@ -20,11 +20,13 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
   const chapters=window.UnitedCampaign, FINAL_COUNT=chapters.reduce((n,c)=>n+Object.keys(c.jobs).length,0);
+  const MIAMI=chapters.length-1,net=window.UnitedNet;
   const terrain=document.createElement('canvas'), world=terrain.getContext('2d',{alpha:false});
   const mapArt=new Image();
   let chapterIndex=0, config, W, H, X, Y, ALLEY, DOCK, PHONE, GARAGE, GARAGE_GOAL, JOB_SPAWN, contracts, JOBS;
   let nodes=[], avenueNodes=[], links=[], blocks=[], collisionTiles=new Map();
   const chapterDone=()=>JOBS.reduce((n,[id])=>n+Number(game.completed.has(id)),0);
+  const finaleReady=()=>chapters.slice(0,MIAMI).every(c=>Object.keys(c.jobs).every(id=>game.completed.has(id)));
   const rect=(o,x,y,w,h,fill)=>{o.fillStyle=fill;o.fillRect(x,y,w,h);};
   function glow(o,x,y,radius,rgb,opacity){
     const g=o.createRadialGradient(x,y,0,x,y,radius);
@@ -47,6 +49,7 @@
       for(const k of ['cash','rep','trust','gift','completed','missionDone','won'])game[k]=old[k];
       if(game.gift==='p')awardSport();
     }
+    if(net.hosting&&net.connected)spawnBuddy(...JOB_SPAWN);
     document.documentElement.dataset.city=config.style;
     staticMap=mapBase();
     $('mini').setAttribute('viewBox',`0 0 ${W} ${H}`);
@@ -68,6 +71,7 @@
   const palettes=['#75ebd1','#c9b7b5','#9ba5b9','#a95975','#568b91','#a797bc','#c78972','#7c889c'];
   const makeCar=(x,y,a,color,extra={})=>({x,y,a,color,s:0,vx:0,vy:0,hp:100,kind:'parked',type:extra.van?'van':'sedan',...extra});
   let game, phase='title', dialog=null, lastFocus=null, muted=true, best=0, selected=true, virtual=false, paintDirty=true;
+  let roomStatus='Crea una sala o entra con el código de tu compañero.',guestMenu='',hostInput=0,hostInputAt=0,remoteAction=0,guestAction=0,soloBackup=null;
   let width=1,height=1,dpr=1,viewScale=1,camera={x:0,y:0};
   let audio=null,bus=null,engine=null,engineGain=null,nextBeat=0,beat=0;
   const keys=new Set(), touches=new Map();
@@ -97,10 +101,17 @@
       return {x:X[xi]+side*53,y:75+roll()*(H-150),origin:0,a:i%2?Math.PI/2:-Math.PI/2,color:['#dfa975','#c4a9d9','#ec89a4','#91c9d6','#af8280'][i%5],pace:18+roll()*12,range:33+roll()*67};
     });
     for(const p of people)p.origin=p.y;
-    return {player:{x,y,a:-Math.PI/2,hp:100,car:null},cars,people,police:[],particles:[],marks:[],time:0,cash:0,heat:0,quiet:0,spawn:0,block:null,blockAt:0,
+    return {player:{x,y,a:-Math.PI/2,hp:100,car:null},buddy:null,cars,people,police:[],particles:[],marks:[],time:0,cash:0,heat:0,quiet:0,spawn:0,block:null,blockAt:0,
       rep:{p:0,m:0},trust:{p:0,m:0},gift:null,waypoint:false,mission:null,completed:new Set(),missionDone:0,lastReport:null,failed:null,won:false,msg:'',msgUntil:0,hitAt:-2,shake:0,lastSkid:0,safeUntil:0,nav:null,seed:roll};
   }
   function player(){return game.player.car || game.player}
+  const actors=()=>game.buddy?[game.player,game.buddy]:[game.player];
+  function spawnBuddy(x,y){
+    game.cars=game.cars.filter(c=>c.id!=='starter-2');
+    const x0=X[nearest(X,x)],y0=Y[nearest(Y,y)];
+    game.buddy={x:x0+11,y:y0-20,a:Math.PI/2,hp:100,car:null};
+    game.cars.push(makeCar(x0+12,y0-47,Math.PI/2,ORANGE,{id:'starter-2',starter:true,type:'compact'}));
+  }
   function hits(x,y,r){
     if(x<r+9||x>(config.coast??W)-8-r||y<r+8||y>H-r-8)return true;
     const canal=config.canal;
@@ -203,12 +214,12 @@
     game.spawn=Math.min(game.spawn,.35);
   }
   function sparks(x,y,color,n=11){if(reduced.matches)n=Math.min(4,n);for(let j=0;j<n;j++){const a=Math.random()*TAU,speed=23+Math.random()*133;game.particles.push({x,y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,ttl:.26+Math.random()*.27,color});}}
-  function damage(amount){
-    if(game.time-game.hitAt<.5||game.time<game.safeUntil)return;
-    game.hitAt=game.time;
-    const o=player();o.hp=clamp(o.hp-amount,0,100);
+  function damage(amount,actor=game.player){
+    if(game.time-(actor.hitAt??-2)<.5||game.time<game.safeUntil)return;
+    actor.hitAt=game.hitAt=game.time;
+    const o=actor.car||actor;o.hp=clamp(o.hp-amount,0,100);
     game.shake=.19;sparks(o.x,o.y,'#ffd17c',12);effect('hit');
-    if(o.hp<=0)finish(false,game.player.car?'El coche ha quedado fuera de servicio.':'Te han atrapado en el distrito.');
+    if(o.hp<=0)finish(false,game.buddy?'Uno de los dos jugadores ha quedado fuera de servicio.':actor.car?'El coche ha quedado fuera de servicio.':'Te han atrapado en el distrito.');
   }
   function dockOpen(){return !!DOCK&&game?.gift==='m';}
   function nearestPhone(p=player()){return dist(p,PHONE.p)<=dist(p,PHONE.m)?PHONE.p:PHONE.m;}
@@ -229,13 +240,14 @@
     game.heat=0;game.police=[];game.block=null;game.blockAt=game.spawn=game.quiet=0;
   }
   function startJob(id){
-    if(!Object.hasOwn(contracts,id)||game.completed.has(id)||game.won)return;
+    if(net.joining||!Object.hasOwn(contracts,id)||game.completed.has(id)||game.won||chapterIndex===MIAMI&&!finaleReady())return;
     const job=contracts[id],side=job.side,[x,y,cx,cy,a=0]=job.spawn||JOB_SPAWN;
     if(game.player.car)game.player.car.s=game.player.car.vx=game.player.car.vy=0;
     game.cars=game.cars.filter(c=>!c.job&&c.kind!=='ally');
-    const starter=game.cars.find(c=>c.starter);
+    const starter=game.cars.find(c=>c.id==='starter');
     Object.assign(starter,{x:cx,y:cy,a,s:0,vx:0,vy:0,hp:100});
     game.player={x,y,a:-Math.PI/2,hp:100,car:null};
+    if(net.hosting&&net.connected)spawnBuddy(x,y);
     clearPursuit();
     game.waypoint=false;game.nav=null;game.shake=0;game.particles.length=0;
     game.safeUntil=game.time+.85;
@@ -260,10 +272,10 @@
     const [,,x,y]=JOB_SPAWN;
     if(!game.cars.some(c=>c.reward))game.cars.push(makeCar(x,y-65,0,LIME,{type:'sport',id:'regalo-p',reward:true,claimed:true}));
   }
-  function handoff(side){
+  function handoff(side,actor){
     const m=game.mission;
     if(!m?.job.steps[m.idx].choice)return false;
-    if(game.player.car!==m.van){notify('Vuelve con la furgoneta marcada para hacer el trato.');return true;}
+    if(actor.car!==m.van)return false;
     game.gift=side;
     game.trust[side]=clamp(game.trust[side]+2,-2,4);
     const rival=side==='p'?'m':'p';
@@ -284,16 +296,15 @@
     const reward=m.side==='x'?(game.gift==='p'?' · Deportivo en El Cruce':' · Atajo de los muelles abierto'):'';
     game.lastReport={title:'Misión completada',detail:`${m.job.name} · +${fmt(m.job.pay)} CR${reward}`,style:'success'};
     if(game.missionDone===FINAL_COUNT){
-      game.won=true;notify('La fiesta ya está en marcha. Miami queda abierta.',5);finish(true);return;
+      game.won=true;notify('La fiesta ya está en marcha.',5);finish(true);return;
     }
-    if(chapterDone()===JOBS.length){best=Math.max(best,game.cash);effect('win');showChapter();return;}
+    if(chapterDone()===JOBS.length){best=Math.max(best,game.cash);effect('win');showCities();return;}
     effect('win');showBoard();
   }
-  function correctCar(m){
-    return !!game.player.car&&(!m.van||!m.job.steps.slice(0,m.idx).some(s=>s.van)||game.player.car===m.van);
+  function holdingCargo(m){
+    return !!m.van&&m.job.steps.slice(0,m.idx).some(s=>s.van);
   }
   function escortStep(m,goal,dt){
-    const p=player();
     if(!m.ally){
       const from=m.job.steps[m.idx-1];
       const route=streetRoute(from,goal,true);
@@ -302,33 +313,38 @@
       m.ally={car:a,route:route.points,index:1};game.cars.push(a);
     }
     const a=m.ally,car=a.car;
-    if(dist(car,p)>205||!game.player.car)return false;
+    if(!actors().some(p=>p.car&&dist(car,p.car)<=205))return false;
     const t=a.route[a.index];
-    if(!t)return dist(goal,p)<132;
+    if(!t)return actors().some(p=>p.car&&dist(goal,p.car)<132);
     const d=dist(t,car),step=dt*125;
     if(d<=step){car.x=t.x;car.y=t.y;a.index++;}
     else{car.a=Math.atan2(t.y-car.y,t.x-car.x);car.x+=Math.cos(car.a)*step;car.y+=Math.sin(car.a)*step;}
-    return a.index===a.route.length&&dist(goal,p)<132;
+    return a.index===a.route.length&&actors().some(p=>p.car&&dist(goal,p.car)<132);
   }
   function stepJob(dt){
     const m=game.mission;if(!m)return;
     if(m.deadline&&game.time>m.deadline){cancelJob('Se acabó el tiempo');return;}
-    const goal=m.job.steps[m.idx], car=game.player.car;
-    if(m.pendingTimer&&car&&(!m.job.steps[0].van||car===m.van)){
+    const goal=m.job.steps[m.idx], team=actors();
+    if(m.pendingTimer&&team.some(p=>p.car&&(!m.job.steps[0].van||p.car===m.van))){
       m.pendingTimer=false;m.deadline=game.time+m.job.time;
       if(m.job.alert){raise(m.job.alert);game.spawn=2.8;}
       notify(`Cuenta atrás: ${m.job.time} s. ${goal.text}`,4);updateUI();
     }
-    if(goal.choice)return;
-    if(goal.escort){if(escortStep(m,goal,dt))advanceGoal(goal);return;}
-    if(!correctCar(m)||(goal.van&&car!==m.van)){m.hold=0;return;}
-    const range=goal.action||goal.stop?61:49;
-    if(!goal.van&&dist(player(),goal)>range){m.hold=0;return;}
-    if(goal.action)return;
-    if(goal.stop){
-      if(Math.abs(car.s)>13){m.hold=0;return;}
-      m.hold+=dt;if(m.hold<goal.stop)return;
+    if(goal.choice){
+      const driver=team.find(p=>p.car===m.van);
+      if(driver)for(const [side,phone] of Object.entries(PHONE))if(dist(driver.car,phone)<52){handoff(side,driver);break;}
+      return;
     }
+    if(m.pendingTimer)return;
+    if(goal.escort){if(escortStep(m,goal,dt))advanceGoal(goal);return;}
+    const range=goal.action||goal.stop?61:49,mustVan=holdingCargo(m)||goal.van;
+    const ready=team.some(p=>{
+      const car=p.car;
+      return (!mustVan||car===m.van)&&(car||goal.action&&!m.job.time)
+        &&(goal.van||dist(car||p,goal)<range)&&(!goal.stop||Math.abs(car?.s??Infinity)<=13);
+    });
+    if(!ready){m.hold=0;return;}
+    if(goal.stop){m.hold+=dt;if(m.hold<goal.stop)return;}
     advanceGoal(goal);
   }
   function advanceGoal(goal){
@@ -342,36 +358,25 @@
     const next=m.job.steps[m.idx];
     notify(next.choice?'Elige P por el deportivo o M por el atajo.':next.escort?'Mantente cerca del vehículo marcado con C.':next.text);updateUI();
   }
-  function interactable(){
-    const me=player(),m=game.mission,goal=m?.job.steps[m.idx];
-    if(goal?.action&&dist(me,goal)<=61&&correctCar(m)&&Math.abs(me.s)<39)return {type:'contact',name:'Confirmar objetivo'};
-    for(const [side,phone] of Object.entries(PHONE)){
-      if(goal?.choice&&dist(me,phone)<50&&(!game.player.car||Math.abs(me.s)<39)){
-        return {type:'phone',side,name:`Entregar a ${phone.name}`};
-      }
-    }
-    if(dist(me,GARAGE)<54&&(game.heat>0||me.hp<100||game.player.hp<100))return {type:'garage',name:'Usar el garaje'};
-    if(game.player.car)return {type:'exit',name:'Bajar del coche'};
-    if(m?.van&&dist(m.van,me)<43&&(goal?.van||m.job.steps.slice(0,m.idx).some(s=>s.van)))return {type:'enter',car:m.van,name:'Subir a la furgoneta'};
+  function interactable(actor=game.player){
+    const me=actor.car||actor,m=game.mission,goal=m?.job.steps[m.idx],occupied=c=>actors().some(p=>p!==actor&&p.car===c);
+    if(dist(me,GARAGE)<54&&(game.heat>0||me.hp<100||actor.hp<100))return {type:'garage',name:'Usar el garaje'};
+    if(actor.car)return {type:'exit',name:'Bajar del coche'};
+    if(m?.van&&!occupied(m.van)&&dist(m.van,me)<43&&(goal?.van||holdingCargo(m)))return {type:'enter',car:m.van,name:'Subir a la furgoneta'};
     let bestDist=43,car=null;
-    for(const c of game.cars){if(c.kind==='traffic'||c.kind==='ally')continue;const d=dist(c,me);if(d<bestDist){bestDist=d;car=c;}}
+    for(const c of game.cars){if(c.kind==='traffic'||c.kind==='ally'||occupied(c))continue;const d=dist(c,me);if(d<bestDist){bestDist=d;car=c;}}
     if(car)return {type:'enter',car,name:car.van?'Subir a la furgoneta':car.type==='sport'?'Subir al deportivo':'Subir al coche'};
     return null;
   }
-  function interact(){
+  function interact(p=game.player){
     if(phase!=='play'||dialog)return;
-    const target=interactable();if(!target)return;
-    const p=game.player;
+    if(net.joining){guestAction=(guestAction+1)&65535;sendInput();return;}
+    const target=interactable(p);if(!target)return;
     if(target.type==='garage'){
-      const o=player();if(o.s!==undefined&&Math.abs(o.s)>38){notify('Frena para usar el garaje.');return;}
+      const o=p.car||p;if(o.s!==undefined&&Math.abs(o.s)>38){notify('Frena para usar el garaje.');return;}
       o.hp=100;p.hp=100;game.heat=0;game.police=[];game.block=null;game.waypoint=false;game.safeUntil=game.time+2;
       effect('job');notify('Garaje: reparación completa y alerta a cero.');
-    }else if(target.type==='phone'){
-      handoff(target.side);
-    }else if(target.type==='contact'){
-      advanceGoal(game.mission.job.steps[game.mission.idx]);return;
-    }
-    else if(target.type==='exit'){
+    }else if(target.type==='exit'){
       const c=p.car;
       if(Math.abs(c.s)>72){notify('Frena antes de bajar.');return;}
       let spot=null;
@@ -391,14 +396,15 @@
   }
 
   const down=(a,b)=>keys.has(a)||(b&&keys.has(b))||[...touches.values()].some(k=>k===a||k===b);
-  function movement(dt){
-    const u=down('ArrowUp','KeyW'),d=down('ArrowDown','KeyS'),l=down('ArrowLeft','KeyA'),r=down('ArrowRight','KeyD');
-    const p=game.player,c=p.car,hor=Number(r)-Number(l),ver=Number(d)-Number(u);
+  const localMask=()=>Number(down('ArrowUp','KeyW'))+2*Number(down('ArrowDown','KeyS'))+4*Number(down('ArrowLeft','KeyA'))+8*Number(down('ArrowRight','KeyD'))+16*Number(down('Space'));
+  function movement(dt,p=game.player,mask=localMask()){
+    const u=!!(mask&1),d=!!(mask&2),l=!!(mask&4),r=!!(mask&8);
+    const c=p.car,hor=Number(r)-Number(l),ver=Number(d)-Number(u);
     if(!c){
       if(hor||ver){const len=Math.hypot(hor,ver);p.a=Math.atan2(ver,hor);move(p,hor/len*145*dt,ver/len*145*dt,8);}
       return;
     }
-    const brake=down('Space'), spec=CAR_TYPES[c.type], {top,accel,radius:rad}=spec;
+    const brake=!!(mask&16), spec=CAR_TYPES[c.type], {top,accel,radius:rad}=spec;
     if(u&&!d)c.s+=dt*(c.s<0?330:accel);
     else if(d&&!u)c.s-=dt*(c.s>0?327:accel*.75);
     else c.s*=Math.pow(.61,dt);
@@ -413,7 +419,7 @@
       c.x=beforeX;c.y=beforeY;crash=true;
       if(Math.abs(c.s)>90&&game.time-game.hitAt>.5)notify('Barricada policial. Busca otra calle.',2.4);
     }
-    if(crash){const v=Math.hypot(c.vx,c.vy);c.s*=-.23;c.vx*=.12;c.vy*=.12;if(v>66)damage(Math.min(27,v/10));}
+    if(crash){const v=Math.hypot(c.vx,c.vy);c.s*=-.23;c.vx*=.12;c.vy*=.12;if(v>66)damage(Math.min(27,v/10),p);}
     for(const other of game.cars){
       if(other===c||other.kind==='ally')continue;
       const dx=c.x-other.x,dy=c.y-other.y,limit=rad+(other.van?15:13);
@@ -421,7 +427,7 @@
       const gap=Math.hypot(dx,dy);
       if(gap<limit&&gap>.05){
         move(c,dx/gap*(limit-gap)*.72,dy/gap*(limit-gap)*.72,rad);
-        if(Math.abs(c.s)>76)damage(Math.min(22,Math.abs(c.s)/16));
+        if(Math.abs(c.s)>76)damage(Math.min(22,Math.abs(c.s)/16),p);
         c.s*=.80;c.vx*=.80;c.vy*=.80;
       }
     }
@@ -556,30 +562,31 @@
     }else game.blockAt=game.time+5;
   }
   function chase(dt){
-    const p=player();
+    const team=actors(),spawnTarget=(team[game.police.length%team.length].car||team[game.police.length%team.length]);
     if(game.heat===0){
       if(game.police.length)game.police.length=0;
       return;
     }
     game.spawn-=dt;
     if(game.spawn<=0&&game.police.length<game.heat+1){
-      const candidates=nodes.filter(n=>dist(n,p)>315&&dist(n,p)<640&&game.police.every(q=>dist(q,n)>90));
-      const at=candidates[Math.floor(game.seed()*candidates.length)]||nodes.find(n=>dist(n,p)>410);
+      const candidates=nodes.filter(n=>dist(n,spawnTarget)>315&&dist(n,spawnTarget)<640&&game.police.every(q=>dist(q,n)>90));
+      const at=candidates[Math.floor(game.seed()*candidates.length)]||nodes.find(n=>dist(n,spawnTarget)>410);
       if(at){
         const role=game.heat>=2&&game.police.length%2===1?'interceptor':'patrulla';
-        game.police.push(makeCar(at.x,at.y,Math.atan2(p.y-at.y,p.x-at.x),'#d2ded1',{kind:'police',role,rethink:0,aim:null}));
+        game.police.push(makeCar(at.x,at.y,Math.atan2(spawnTarget.y-at.y,spawnTarget.x-at.x),'#d2ded1',{kind:'police',role,rethink:0,aim:null}));
       }
       game.spawn=game.police.length===1?1.8:3.4;
     }
     let close=false;
     for(const cop of game.police){
+      const target=team.length===2&&dist(cop,team[1].car||team[1])<dist(cop,player())?team[1]:team[0],p=target.car||target;
       const gap=dist(cop,p);
       if(gap<232)close=true;
       if(gap>1010){cop.gone=true;continue;}
       cop.rethink-=dt;
       if(cop.rethink<=0||!cop.aim||dist(cop,cop.aim)<16){
         cop.rethink=.23;
-        const lead=cop.role==='interceptor'&&game.player.car&&Math.abs(p.s)>80?clamp(Math.abs(p.s)*.65,65,175):0;
+        const lead=cop.role==='interceptor'&&target.car&&Math.abs(p.s)>80?clamp(Math.abs(p.s)*.65,65,175):0;
         const ahead=lead?{x:clamp(p.x+Math.cos(p.a)*lead*Math.sign(p.s),55,(config.coast??W)-55),y:clamp(p.y+Math.sin(p.a)*lead*Math.sign(p.s),45,H-45)}:p;
         const aim=lead&&ahead!==p&&trace(p.x,p.y,ahead.x,ahead.y,15)?ahead:p;
         if(gap<370&&trace(cop.x,cop.y,aim.x,aim.y,15)){
@@ -613,11 +620,12 @@
         cop.s=v;
         if(move(cop,Math.cos(cop.a)*v*dt,Math.sin(cop.a)*v*dt,15))cop.rethink=0;
       }
-      if(gap<(game.player.car?29:21)){
+      if(gap<(target.car?29:21)){
         const n=gap||1;
-        move(p,(p.x-cop.x)/n*9,(p.y-cop.y)/n*9,game.player.car?15:8);
-        if(game.player.car)p.s*=.83;
-        damage(game.player.car?11+game.heat*2:14+game.heat*2);
+        move(p,(p.x-cop.x)/n*9,(p.y-cop.y)/n*9,target.car?15:8);
+        if(target.car)p.s*=.83;
+        damage(target.car?11+game.heat*2:14+game.heat*2,target);
+        if(phase!=='play')return;
       }
     }
     game.police=game.police.filter(c=>!c.gone);
@@ -628,9 +636,11 @@
     }
   }
   function update(dt){
-    if(phase!=='play'||dialog||!selected)return;
+    if(phase!=='play'||dialog||!selected&&!net.connected||net.joining)return;
     game.time+=dt;game.shake=Math.max(0,game.shake-dt);
     movement(dt);if(phase!=='play')return;
+    if(game.buddy)movement(dt,game.buddy,performance.now()-hostInputAt<550?hostInput:0);
+    if(phase!=='play')return;
     traffic(dt);chase(dt);if(phase!=='play')return;
     policeBlock();
     stepJob(dt);
@@ -758,6 +768,13 @@
       if(c.kind==='ally')marker(c.x,c.y-27,'#ffbf83','C',true);
       if(c.reward)marker(c.x,c.y-26,LIME,'D');
     }
+    if(game.buddy){
+      const other=game.buddy.car||game.buddy;
+      if(visible(other)){
+        if(!game.buddy.car)drawPerson({...other,color:ORANGE,origin:3});
+        marker(other.x,other.y-(game.buddy.car?33:25),ORANGE,net.joining?'1':'2');
+      }
+    }
     for(const c of game.police)if(visible(c))drawCar(c);
     if(game.player.car)drawCar(game.player.car);else drawPerson(game.player,true);
     for(const p of game.particles){ctx.globalAlpha=clamp(p.ttl*3,0,1);rect(ctx,p.x,p.y,3,2,p.color);}
@@ -795,7 +812,8 @@
     const line=route?.points.length>1?`<polyline data-gps="true" points="${route.points.map(q=>[Math.round(q.x),Math.round(q.y)].join(',')).join(' ')}" fill="none" stroke="${guideColor(goal)}" stroke-width="16" stroke-linejoin="round"/>`:'';
     const marked=goal===GARAGE_GOAL||game.mission&&!game.mission.job.steps[game.mission.idx].choice;
     const ally=game.mission?.ally?.car;
-    return dock+line+red+block+(ally?`<circle cx="${ally.x}" cy="${ally.y}" r="31" fill="#ffbf83"/>`:'')+(goal&&marked?`<circle cx="${goal.x}" cy="${goal.y}" r="55" fill="none" stroke="${guideColor(goal)}" stroke-width="11"/>`:'')+`<circle cx="${p.x}" cy="${p.y}" r="36" fill="#fff0f7" stroke="#1f2139" stroke-width="9"/>`;
+    const other=game.buddy?.car||game.buddy;
+    return dock+line+red+block+(ally?`<circle cx="${ally.x}" cy="${ally.y}" r="31" fill="#ffbf83"/>`:'')+(goal&&marked?`<circle cx="${goal.x}" cy="${goal.y}" r="55" fill="none" stroke="${guideColor(goal)}" stroke-width="11"/>`:'')+(other?`<circle cx="${other.x}" cy="${other.y}" r="33" fill="${ORANGE}" stroke="#1f2139" stroke-width="8"/>`:'')+`<circle cx="${p.x}" cy="${p.y}" r="36" fill="#fff0f7" stroke="#1f2139" stroke-width="9"/>`;
   }
   const set=(id,text)=>{const e=$(id);if(e.textContent!==text)e.textContent=text;};
   let uiT=0;
@@ -826,15 +844,13 @@
       const seconds=m.deadline?Math.max(0,Math.ceil(m.deadline-game.time)):0;
       set('brief-title',m.job.name);
       const stage=m.job.steps[m.idx],choice=stage.choice;
-      const action=touchMode()?'ACCIÓN':'E';
       const source=m.job.steps[0].van?'la furgoneta marcada':'un coche';
       let objective=stage.text;
-      if(choice)objective=`P: deportivo. M: atajo. Detente junto al teléfono con la furgoneta y pulsa ${action}.`;
+      if(choice)objective='Acércate con la furgoneta a P para el deportivo o a M para el atajo. La entrega es automática.';
       else if(m.pendingTimer)objective=`Sube a ${source} para iniciar el cronómetro.`;
-      else if(stage.action)objective+=` Detente y pulsa ${action}.`;
       else if(stage.stop)objective+=` Quédate parado ${Math.ceil(stage.stop)} s dentro de la marca.`;
       else if(stage.escort)objective=goal?.kind==='ally'?'Vuelve con el convoy C: se ha detenido.':`${objective} Mantente cerca del convoy C.`;
-      if(!c&&!m.pendingTimer&&!stage.van)objective='Sube a un coche. '+objective;
+      if(!c&&!m.pendingTimer&&!stage.van&&!stage.action&&!choice&&!game.buddy)objective='Sube a un coche. '+objective;
       if(stage.stop&&m.hold>0){const remain=Math.max(1,Math.ceil(stage.stop-m.hold));objective=`Mantén el coche parado · ${remain} s`;}
       set('brief-text',objective);
       set('mission-distance',`${m.idx+1}/${m.job.steps.length} · ${choice?'P o M':meters+' m'}${m.deadline?' · '+seconds+' s':''}`);
@@ -842,8 +858,8 @@
       set('mobile-goal-text',objective);
     }else{
       const title=phase==='title',remaining=JOBS.length-chapterDone();
-      set('brief-title',game.won?'Ciudad libre':title?config.subtitle:remaining===0?'Capítulo completo':'Elige una misión');
-      set('brief-text',game.won?'Las 25 misiones están completas. Miami sigue abierta.':title?config.story:remaining===0?'Las cinco misiones del capítulo están completas.':`Queda${remaining===1?'':'n'} ${remaining} ${remaining===1?'misión':'misiones'} en ${config.name}. Puedes hacerlas en el orden que quieras.`);
+      set('brief-title',game.won?'Campaña completa':title?config.subtitle:remaining===0?'Mapa completado':'Elige una misión');
+      set('brief-text',game.won?'Las 25 misiones están completas.':title?config.story:remaining===0?'Ya completaste todas las misiones de este mapa.':`Queda${remaining===1?'':'n'} ${remaining} ${remaining===1?'misión':'misiones'} en ${config.name}. Puedes hacerlas en el orden que quieras.`);
     }
     if(game.waypoint){
       set('mission-distance',`GPS · Garaje · ${Math.round(route?.length??dist(p,GARAGE))} m`);
@@ -854,78 +870,204 @@
   const touchMode=()=>matchMedia('(pointer:coarse), (max-width:760px)').matches;
   function refreshShell(){
     $('stage').dataset.phase=phase==='title'?'title':dialog||phase;
-    $('title-screen').hidden=phase!=='title';$('hud').hidden=phase==='title'||phase==='board'||phase==='chapter';
+    $('title-screen').hidden=phase!=='title';$('hud').hidden=!['play','end','win'].includes(phase);
     $('touch').hidden=phase!=='play'||!!dialog;
     $('pause').disabled=phase!=='play';
     $('map-btn').disabled=phase!=='title'&&phase!=='play';
     $('pause').setAttribute('aria-pressed',String(dialog==='pause'));
-    set('state-label',dialog==='pause'?'PARTIDA EN PAUSA':dialog==='map'?'PLANO DE LA CIUDAD':phase==='title'?'ESPERANDO JUGADOR':phase==='board'?'CENTRAL DE ENCARGOS':phase==='chapter'?'CAPÍTULO COMPLETO':phase==='end'?'FUERA DE SERVICIO':phase==='win'?'CAMPAÑA COMPLETA':'EN DIRECTO');
-    set('start-label',game.missionDone?'CONTINUAR':'JUGAR');
+    set('state-label',net.connected?'COOP ONLINE · '+(net.hosting?'J1':'J2'):dialog==='pause'?'PARTIDA EN PAUSA':dialog==='map'?'PLANO DE LA CIUDAD':phase==='title'?'ELIGE CÓMO JUGAR':phase==='board'?'CENTRAL DE ENCARGOS':phase==='select'?'SELECCIÓN DE MAPA':phase==='end'?'FUERA DE SERVICIO':phase==='win'?'CAMPAÑA COMPLETA':'EN DIRECTO');
     set('city-stamp',config.stamp);set('city-header',config.name);
     canvas.setAttribute('aria-label',`${config.name}, vista cenital`);
     $('mini').setAttribute('aria-label',`Mapa de ${config.name}`);
     $('chapter-list').innerHTML=chapters.map((c,i)=>{
-      const done=Object.keys(c.jobs).filter(id=>game.completed.has(id)).length;
-      const status=done===5?'complete':i===chapterIndex?'active':'locked';
-      return `<li data-status="${status}" ${i===chapterIndex?'aria-current="step"':''}><span class="chapter-number">0${i+1}</span><span class="chapter-name">${c.name}</span><span class="chapter-score" aria-label="${done} de 5 misiones">${done}/5</span></li>`;
+      const ids=Object.keys(c.jobs),done=ids.filter(id=>game.completed.has(id)).length;
+      const status=done===ids.length?'complete':i===chapterIndex?'active':i===MIAMI&&!finaleReady()?'locked':'open';
+      return `<li data-status="${status}" ${i===chapterIndex?'aria-current="step"':''}><span class="chapter-number">0${i+1}</span><span class="chapter-name">${c.name}</span><span class="chapter-score" aria-label="${done} de ${ids.length} misiones">${done}/${ids.length}</span></li>`;
     }).join('');
     updateUI();paintDirty=true;render();
   }
   function clearInput(){keys.clear();touches.clear();document.querySelectorAll('.held').forEach(b=>b.classList.remove('held'));}
   function start(){
+    if(net.busy)leaveRoom(false);
     clearInput();readyAudio();effect('job');
     if(game.won){phase='win';showDialog('win');}
-    else if(chapterDone()===JOBS.length)showChapter();else showBoard();
+    else showCities();
   }
   function showBoard(){
     phase='board';game.msg='';game.waypoint=false;game.nav=null;showDialog('jobs');
   }
-  function showChapter(){phase='chapter';showDialog('chapter');}
+  function showCities(){phase='select';game.msg='';game.mission=null;clearPursuit();game.waypoint=false;game.nav=null;showDialog('cities');}
+  function chooseWorld(index){
+    if(net.joining||!Number.isInteger(index)||!chapters[index]||index===MIAMI&&!finaleReady()||game.won)return;
+    if(index!==chapterIndex)loadChapter(index);
+    showBoard();
+  }
+  function showOnline(){
+    phase='title';
+    roomStatus='Crea una sala o entra con el código de tu compañero.';
+    showDialog('online');
+  }
+  function renderLobby(){
+    const body=$('dialog-content'), previous=$('room-input')?.value||'';
+    body.innerHTML=`<p class="room-intro">Dos jugadores, dos coches y la misma campaña. Compartid un código para jugar juntos.</p>
+      <p id="room-message" class="room-status" role="status"></p>
+      ${net.hosting&&net.code?`<div class="room-code"><div><span>CÓDIGO DE SALA</span><output id="room-code">${net.code}</output></div><button type="button" class="secondary" data-online="copy">Copiar código</button></div>`
+      :net.busy?'<div class="room-wait">Estableciendo conexión…</div>'
+      :'<div class="room-options"><button class="primary" type="button" data-online="host">Crear sala</button><form id="room-form"><label for="room-input">Código de sala</label><div><input id="room-input" name="code" type="text" maxlength="8" spellcheck="false" autocomplete="off" autocapitalize="characters" placeholder="Ej. 7H2MV5FT"><button class="secondary" type="submit">Unirme</button></div></form></div>'}`;
+    set('room-message',roomStatus);
+    if($('room-input'))$('room-input').value=previous;
+  }
+  function leaveRoom(goTitle=true){
+    net.close();hostInput=0;remoteAction=guestAction=0;guestMenu='';
+    game.buddy=null;
+    if(soloBackup){
+      const saved=soloBackup;soloBackup=null;
+      loadChapter(saved.index,false);game=saved.game;
+    }
+    if(goTitle)showTitle();
+  }
+  function sendInput(){
+    if(!net.joining||!net.connected)return;
+    net.send({type:'input',mask:phase==='play'&&!dialog&&selected?localMask():0,action:guestAction});
+  }
+  const quant=n=>Math.round((n||0)*100)/100;
+  const actorWire=p=>[quant(p.x),quant(p.y),quant(p.a),quant(p.hp),p.car?.id??null];
+  const carWire=c=>[c.id??null,quant(c.x),quant(c.y),quant(c.a%TAU),quant(c.s),quant(c.hp),c.type,c.color,c.kind,Number(!!c.van)+2*Number(!!c.starter)+4*Number(!!c.reward)+8*Number(!!c.job),c.role??null];
+  function sendSnapshot(){
+    if(!net.hosting||!net.connected||!game.buddy)return;
+    const m=game.mission;
+    net.send({type:'state',world:chapterIndex,phase,menu:dialog||'',t:quant(game.time),heat:game.heat,cash:game.cash,
+      all:[...game.completed],trust:game.trust,rep:game.rep,gift:game.gift,won:game.won,best,failed:game.failed,report:game.lastReport,end:game.endReason,
+      msg:game.msg,until:game.msgUntil,car:game.cars.map(carWire),cop:game.police.map(carWire),p:[actorWire(game.player),actorWire(game.buddy)],
+      block:game.block&&{id:game.block.id,x:game.block.x,y:game.block.y,dx:game.block.dx},
+      m:m&&[m.id,m.idx,m.deadline,m.pendingTimer,m.hold,m.van?.id??null,m.ally?.car.id??null]});
+  }
+  function receiveSnapshot(d){
+    if(!Number.isInteger(d.world)||!chapters[d.world]||!['title','select','wait','board','play','end','win'].includes(d.phase)
+      ||!Array.isArray(d.car)||d.car.length>130||!Array.isArray(d.cop)||d.cop.length>8
+      ||!Array.isArray(d.p)||d.p.length!==2||d.p.some(p=>!Array.isArray(p)||!p.slice(0,4).every(Number.isFinite))
+      ||!Array.isArray(d.all)||d.all.length>FINAL_COUNT||!Number.isFinite(d.t)||!Number.isFinite(d.cash))return;
+    const changedWorld=d.world!==chapterIndex;
+    if(changedWorld)loadChapter(d.world,false);
+    const parseCar=v=>({id:v[0],x:v[1],y:v[2],a:v[3],s:v[4],hp:v[5],type:CAR_TYPES[v[6]]?v[6]:'sedan',
+      color:typeof v[7]==='string'&&/^#[0-9a-f]{6}$/i.test(v[7])?v[7]:CYAN,kind:v[8],van:!!(v[9]&1),starter:!!(v[9]&2),reward:!!(v[9]&4),job:!!(v[9]&8),role:v[10]});
+    const parseActor=v=>({x:v[0],y:v[1],a:v[2],hp:v[3],car:v[4]===null?null:byId.get(v[4])||null});
+    const carOk=v=>Array.isArray(v)&&v.slice(1,6).length===5&&v.slice(1,6).every(Number.isFinite);
+    const cars=d.car.filter(carOk).map(parseCar),byId=new Map(cars.map(c=>[c.id,c]));
+    game.cars=cars;game.police=d.cop.filter(carOk).map(parseCar);
+    game.player=parseActor(d.p[1]);game.buddy=parseActor(d.p[0]);
+    Object.assign(game,{time:d.t,heat:clamp(Math.round(d.heat)||0,0,3),cash:d.cash,completed:new Set(d.all.filter(x=>typeof x==='string')),
+      trust:{p:Number(d.trust?.p)||0,m:Number(d.trust?.m)||0},rep:{p:Number(d.rep?.p)||0,m:Number(d.rep?.m)||0},gift:['p','m'].includes(d.gift)?d.gift:null,
+      won:!!d.won,failed:d.failed,lastReport:d.report&&{title:String(d.report.title).slice(0,180),detail:String(d.report.detail).slice(0,180),style:d.report.style==='success'?'success':'retry'},
+      endReason:String(d.end??'').slice(0,180),msg:typeof d.msg==='string'?d.msg.slice(0,240):'',msgUntil:Number(d.until)||0,block:d.block&&[d.block.x,d.block.y,d.block.dx].every(Number.isFinite)?d.block:null});
+    game.missionDone=game.completed.size;best=Math.max(best,Number(d.best)||0);
+    const v=d.m,job=Array.isArray(v)&&Object.hasOwn(contracts,v[0])?contracts[v[0]]:null;
+    game.mission=job&&Number.isInteger(v[1])&&job.steps[v[1]]?{id:v[0],side:job.side,job,idx:v[1],deadline:Number(v[2])||0,pendingTimer:!!v[3],hold:Number(v[4])||0,
+      van:byId.get(v[5])||null,ally:byId.has(v[6])&&v[6]?{car:byId.get(v[6])}:null}:null;
+    const next=`${d.world}/${d.phase}/${d.menu}`;
+    if(next!==guestMenu){
+      guestMenu=next;
+      if(d.phase==='play'&&!d.menu){
+        phase='play';closeDialog(false);$('stage').focus({preventScroll:true});
+      }else if(d.phase==='board'){phase='board';showDialog('jobs');}
+      else if(d.phase==='win'||d.phase==='end'){phase=d.phase;showDialog(d.phase);}
+      else{phase='wait';showDialog(d.phase==='play'?'hostpause':'waiting');}
+    }else if(changedWorld){refreshShell();}
+    paintDirty=true;
+  }
+  net.onStatus=msg=>{
+    roomStatus=msg;
+    if(dialog==='online'){
+      if($('room-input')&&!net.busy)set('room-message',msg);
+      else renderLobby();
+    }
+  };
+  net.onConnect=()=>{
+    hostInputAt=hostInput=remoteAction=guestAction=0;guestMenu='';
+    if(net.hosting){
+      spawnBuddy(...JOB_SPAWN);
+      if(game.won){phase='win';showDialog('win');}else showCities();
+      sendSnapshot();
+    }else{
+      soloBackup={game,index:chapterIndex};
+      loadChapter(chapterIndex,false);phase='wait';showDialog('waiting');sendInput();
+    }
+  };
+  net.onLost=msg=>{leaveRoom(false);showOnline();roomStatus=msg;renderLobby();};
+  net.onData=d=>{
+    if(net.hosting&&d.type==='input'){
+      if(!Number.isInteger(d.mask)||d.mask<0||d.mask>31||!Number.isInteger(d.action)||d.action<0||d.action>65535)return;
+      hostInput=d.mask;hostInputAt=performance.now();
+      if(d.action!==remoteAction){
+        remoteAction=d.action;
+        if(game.buddy&&performance.now()-lastRemoteUse>100){lastRemoteUse=performance.now();interact(game.buddy);}
+      }
+    }else if(net.joining&&d.type==='state')receiveSnapshot(d);
+  };
+  let lastRemoteUse=-Infinity;
+  const networkTick=setInterval(()=>{
+    if(net.hosting)sendSnapshot();
+    if(net.joining){sendInput();if(phase==='play'&&!dialog)updateUI();}
+  },45);
   function showDialog(kind){
     if(!dialog)lastFocus=document.activeElement;
     clearInput();dialog=kind;
     const panel=$('overlay-panel'), body=$('dialog-content'),actions=$('dialog-actions');
     panel.classList.toggle('map-dialog',kind==='map');
-    panel.classList.toggle('board-dialog',kind==='jobs');
-    $('close-overlay').hidden=['end','win','jobs','chapter'].includes(kind);
-    const labels={jobs:[`CAPÍTULO 0${config.number} / ${config.name.toUpperCase()}`,'Elige una misión'],chapter:[`CAPÍTULO 0${config.number} · 5/5`,`${config.name} completado`],help:['MANUAL DE CALLE','Cómo jugar'],map:[`NAVEGACIÓN / ${config.name.toUpperCase()}`,'Plano de la ciudad'],pause:['TRANSMISIÓN EN PAUSA','Partida en pausa'],end:['TRANSMISIÓN INTERRUMPIDA','Fuera de servicio'],win:['CAMPAÑA COMPLETA · 25/25','United Gangs']};
+    panel.classList.toggle('board-dialog',kind==='jobs'||kind==='cities');
+    $('close-overlay').hidden=['end','win','jobs','cities','online','waiting','hostpause'].includes(kind);
+    const labels={jobs:[`${chapterIndex===MIAMI?'MISIÓN FINAL':'CENTRAL DE ENCARGOS'} / ${config.name.toUpperCase()}`, net.joining?'El anfitrión elige':'Elige una misión'],
+      cities:[net.connected?'COOPERATIVO · JUGADOR 1':'CAMPAÑA NOCTURNA','Elige un mapa'],online:['COOPERATIVO · 2 JUGADORES','Juega en línea'],
+      waiting:['COOPERATIVO · JUGADOR 2','En la sala'],hostpause:['COOPERATIVO · JUGADOR 2','Partida en espera'],
+      help:['MANUAL DE CALLE','Cómo jugar'],map:[`NAVEGACIÓN / ${config.name.toUpperCase()}`,'Plano de la ciudad'],pause:['TRANSMISIÓN EN PAUSA','Partida en pausa'],end:['TRANSMISIÓN INTERRUMPIDA','Fuera de servicio'],win:['CAMPAÑA COMPLETA · 25/25','United Gangs']};
     set('dialog-kicker',labels[kind][0]);set('dialog-title',labels[kind][1]);
     let buttons=[];
     if(kind==='jobs'){
       const report=game.lastReport;
       body.innerHTML=`<div class="board-progress"><span><strong>${chapterDone()}/${JOBS.length}</strong> en el capítulo</span><span>${fmt(game.cash)} CR</span></div>${report?'<div class="board-report" id="board-report" role="status"></div>':''}<div class="job-list">${JOBS.map(([id,job],i)=>{
         const done=game.completed.has(id),meta=done?'Completada':`${job.tag} · ${job.steps.length} etapas · ${fmt(job.pay)} CR`,hint=done?'HECHA':job.level===1?'FÁCIL':job.level===2?'MEDIA':'DIFÍCIL';
-        return `<button type="button" class="job-card" data-job="${id}" data-level="${job.level}" ${done?'disabled':''}><span class="job-number" aria-hidden="true">0${i+1}</span><span class="job-info"><strong>${job.name}</strong><span>${job.summary}</span><small>${meta}</small></span><span class="job-rank">${hint} ${done?'':icon('arrow')}</span></button>`;
+        return `<button type="button" class="job-card" data-job="${id}" data-level="${job.level}" ${done||net.joining?'disabled':''}><span class="job-number" aria-hidden="true">0${i+1}</span><span class="job-info"><strong>${job.name}</strong><span>${job.summary}</span><small>${meta}</small></span><span class="job-rank">${hint} ${done||net.joining?'':icon('arrow')}</span></button>`;
       }).join('')}</div>`;
       if(report){
         $('board-report').classList.add(report.style);
         $('board-report').textContent=`${report.title}: ${report.detail}`;
       }
-      buttons=[['Volver a la portada','title']];
-    }else if(kind==='chapter'){
-      const next=chapters[chapterIndex+1];
-      body.innerHTML=`<p>${game.lastReport?.detail??'Has completado las cinco misiones.'}</p><div class="chapter-pass"><span>PRÓXIMA PARADA / 0${next.number}</span><strong>${next.name}</strong><p>${next.story}</p></div><p>Campaña: <strong>${game.missionDone}/${FINAL_COUNT}</strong> · Efectivo: <strong>${fmt(game.cash)} CR</strong></p>`;
-      buttons=[[`Viajar a ${next.name}`,'next',true],['Volver a la portada','title']];
+      buttons=net.joining?[['Salir de la sala','leave']]:[['Cambiar mapa','cities']];
+    }else if(kind==='cities'){
+      body.innerHTML=`<p class="cities-intro">Elige cualquiera de las cuatro ciudades. Miami se abre cuando completas las otras 24 misiones.</p>
+        <div class="cities-grid">${chapters.map((c,i)=>{
+          const ids=Object.keys(c.jobs),done=ids.filter(x=>game.completed.has(x)).length,locked=i===MIAMI&&!finaleReady();
+          return `<button type="button" class="city-card" data-world="${i}" data-theme="${c.style}" ${locked?'disabled':''}>
+            <span class="city-index">0${i+1}</span><span class="city-name">${c.name}</span><span class="city-progress">${locked?'BLOQUEADA · MISIÓN FINAL':i===MIAMI?'MISIÓN FINAL DISPONIBLE':`${done}/${ids.length} ${done===ids.length?'COMPLETADAS':'MISIONES'}`}</span>${locked?'':icon('arrow')}
+          </button>`;
+        }).join('')}</div>`;
+      buttons=net.connected?[['Salir de la sala','leave']]:[['Volver a la portada','title']];
+    }else if(kind==='online'){
+      renderLobby();buttons=[['Volver a la portada','leave']];
+    }else if(kind==='waiting'||kind==='hostpause'){
+      body.innerHTML=`<p>${kind==='waiting'?'Conectado. El anfitrión está eligiendo un mapa.':'El anfitrión abrió un menú. La partida se reanudará cuando lo cierre.'}</p>`;
+      buttons=[['Salir de la sala','leave']];
     }else if(kind==='help'){
-      body.innerHTML='<p>Elige las cinco misiones de cada capítulo en el orden que prefieras. Al completar las cinco, viajas a un mapa nuevo.</p><ul><li><strong>WASD / flechas:</strong> muévete. En coche, arriba acelera, abajo frena o da marcha atrás y los lados giran.</li><li><strong>E / Acción:</strong> entra o sal del coche, usa el garaje, o detente y confirma un objetivo.</li><li><strong>Espacio / Freno:</strong> freno de mano. En una parada técnica, quédate quieto en la marca.</li><li><strong>Convoy C:</strong> acompaña al coche marcado; se detiene si te alejas.</li><li><strong>M / mapa:</strong> consulta el GPS o marca el garaje. <strong>Esc:</strong> pausa.</li><li><strong>Garaje G:</strong> repara el vehículo y baja la alerta a cero.</li></ul>';
+      body.innerHTML='<p>Elige un mapa y las misiones que quieras. Los objetivos se activan al llegar. Miami se desbloquea tras completar las otras cuatro ciudades.</p><ul><li><strong>WASD / flechas:</strong> muévete. En coche, arriba acelera, abajo frena o da marcha atrás y los lados giran.</li><li><strong>E / Acción:</strong> entra o sal del coche, o usa el garaje.</li><li><strong>Espacio / Freno:</strong> freno de mano. En una parada técnica, quédate quieto en la marca.</li><li><strong>Convoy C:</strong> acompaña al coche marcado; se detiene si nadie se queda cerca.</li><li><strong>M / mapa:</strong> consulta el GPS o marca el garaje. <strong>Esc:</strong> abre el menú.</li><li><strong>Garaje G:</strong> repara el vehículo y baja la alerta a cero.</li></ul>';
       buttons=[['Entendido','close',true]];
     }else if(kind==='map'){
       body.innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="map-large" role="img" aria-label="Mapa de juego de ${config.name} con tu ruta">${staticMap+liveMap()}</svg><div class="legend"><span><b style="color:${LIME}">P</b>Pistones</span><span><b style="color:${ORANGE}">M</b>La Marea</span><span><b style="color:${CYAN}">G</b>Garaje</span><span><b>●</b>Tú</span><span><b style="color:${RED}">●</b>Patrulla</span><span><b style="color:${RED}">×</b>Bloqueo</span>${config.style==='miami'?'<span>Escenario ficticio inspirado en <a href="https://www.miamiandbeaches.com/neighborhoods/south-beach" target="_blank" rel="noopener noreferrer">South Beach</a>.</span>':''}</div>`;
       buttons=[['Cerrar mapa','close',true],...(phase==='play'?[[game.waypoint?'Quitar destino GPS':'Marcar garaje','waypoint']]:[])];
     }else if(kind==='pause'){
-      body.innerHTML='<p>La ciudad y los cronómetros se han detenido.</p>';
-      buttons=[['Continuar','close',true],['Cómo jugar','pause-help'],...(game.mission?[['Abandonar encargo','abort']]:[]),['Volver al inicio','title']];
+      body.innerHTML=net.joining?'<p>Este menú no detiene la partida del anfitrión.</p>':'<p>La ciudad y los cronómetros se han detenido.</p>';
+      buttons=[['Continuar','close',true],['Cómo jugar','pause-help'],...(!net.joining&&game.mission?[['Abandonar encargo','abort']]:[]),
+        ...(!net.joining?[['Cambiar mapa','cities']]:[]),net.connected?['Salir de la sala','leave']:['Volver al inicio','title']];
     }else{
       body.innerHTML=`<p id="outcome"></p><p>Campaña: <strong>${game.missionDone}/${FINAL_COUNT}</strong> · Efectivo: <strong>${fmt(game.cash)} CR</strong><br>Récord de esta sesión: <strong>${fmt(best)} CR</strong></p>`;
-      if(kind==='win'){set('outcome','Has completado los cinco capítulos. Los Pistones y La Marea celebran juntos en Miami; la ciudad se queda abierta para ti.');buttons=[['Explorar Miami','free',true],['Nueva partida','reset']];}
+      if(kind==='win'){set('outcome','Has completado las 25 misiones. Los Pistones y La Marea ya celebran juntos en Miami.');buttons=net.joining?[['Salir de la sala','leave']]:[['Nueva partida','reset',true],net.connected?['Salir de la sala','leave']:['Volver a la portada','title']];}
       else{
         set('outcome',game.endReason+(game.failed?' Tus misiones completadas se conservan.':''));
-        buttons=game.failed?[['Reintentar','retry',true],['Elegir otra misión','board']]:[['Volver a explorar','free',true],['Nueva partida','reset']];
+        buttons=net.joining?[['Salir de la sala','leave']]:game.failed?[['Reintentar','retry',true],['Elegir otra misión','board'],['Cambiar mapa','cities']]:[['Cambiar mapa','cities',true],['Nueva partida','reset']];
       }
     }
     actions.innerHTML=buttons.map(([label,id,primary])=>`<button type="button" class="${primary?'primary':'secondary'}" data-action="${id}">${label}</button>`).join('');
     $('overlay').hidden=false;panel.scrollTop=0;refreshShell();
-    (kind==='jobs'?panel:actions.querySelector('button')||panel).focus({preventScroll:true});
+    (kind==='jobs'||kind==='cities'||kind==='online'?panel:actions.querySelector('button')||panel).focus({preventScroll:true});
   }
   function closeDialog(focus=true){
     dialog=null;$('overlay').hidden=true;refreshShell();
@@ -942,7 +1084,7 @@
     effect(win?'win':'loss');showDialog(phase);
   }
   function showTitle(reset=false){
-    if(reset)loadChapter(0,false);
+    if(reset){loadChapter(0,false);if(net.hosting&&net.connected){showCities();return;}}
     else{game.mission=null;game.waypoint=false;clearPursuit();}
     phase='title';closeDialog(false);$('start-btn').focus({preventScroll:true});
   }
@@ -952,6 +1094,7 @@
   }
   function openMap(){if(phase!=='play'&&phase!=='title')return;if(dialog==='map')closeDialog();else if(!dialog)showDialog('map');}
   $('start-btn').addEventListener('click',start);
+  $('coop-btn').addEventListener('click',showOnline);
   $('sound').addEventListener('click',toggleSound);
   $('pause').addEventListener('click',pause);
   $('tutorial').addEventListener('click',()=>showDialog('help'));
@@ -961,40 +1104,58 @@
   $('dialog-content').addEventListener('click',e=>{
     const button=e.target.closest('[data-job]');
     if(dialog==='jobs'&&button&&!button.disabled)startJob(button.dataset.job);
+    const city=e.target.closest('[data-world]');
+    if(dialog==='cities'&&city&&!city.disabled)chooseWorld(+city.dataset.world);
+    const action=e.target.closest('[data-online]')?.dataset.online;
+    if(dialog==='online'&&action==='host')net.host();
+    if(dialog==='online'&&action==='copy'){
+      const code=net.code,stillOpen=()=>dialog==='online'&&net.code===code;
+      const copied=()=>{if(stillOpen())set('room-message','Código copiado. Envíalo a tu compañero.');};
+      const fallback=()=>{
+        const output=$('room-code'),selection=getSelection();
+        if(!stillOpen()||!output||!selection)return;
+        const range=document.createRange();range.selectNodeContents(output);selection.removeAllRanges();selection.addRange(range);
+        set('room-message','Código seleccionado. Cópialo y envíalo a tu compañero.');
+      };
+      if(navigator.clipboard?.writeText)navigator.clipboard.writeText(code).then(copied).catch(fallback);else fallback();
+    }
+  });
+  $('dialog-content').addEventListener('submit',e=>{
+    if(dialog==='online'&&e.target.id==='room-form'){e.preventDefault();net.join($('room-input').value);}
   });
   $('dialog-actions').addEventListener('click',e=>{
     const a=e.target.closest('button')?.dataset.action;
     if(a==='close')closeDialog();
+    if(a==='leave')leaveRoom();
     if(a==='title')showTitle();
     if(a==='reset')showTitle(true);
     if(a==='board')showBoard();
-    if(a==='next'&&phase==='chapter'&&chapterDone()===JOBS.length&&chapterIndex<chapters.length-1){loadChapter(chapterIndex+1);showBoard();}
+    if(a==='cities')showCities();
     if(a==='retry'&&game.failed)startJob(game.failed);
     if(a==='pause-help')showDialog('help');
     if(a==='abort')cancelJob('Misión abandonada');
     if(a==='waypoint'){game.waypoint=!game.waypoint;notify(game.waypoint?'GPS: garaje marcado.':'GPS: destino eliminado.');closeDialog();}
-    if(a==='free'){
-      if(phase==='end'){
-        const [x,y]=JOB_SPAWN;clearPursuit();game.player={x,y,a:-Math.PI/2,hp:100,car:null};game.nav=null;
-      }
-      phase='play';closeDialog(false);$('stage').focus({preventScroll:true});
-    }
   });
   document.addEventListener('keydown',e=>{
     if(e.ctrlKey||e.altKey||e.metaKey)return;
     if(e.code==='Tab'&&dialog){
-      const b=[...$('overlay-panel').querySelectorAll('button:not(:disabled),a[href]')].filter(el=>!el.closest('[hidden]')); if(!b.length)return;
+      const b=[...$('overlay-panel').querySelectorAll('button:not(:disabled),a[href],input:not(:disabled)')].filter(el=>!el.closest('[hidden]')); if(!b.length)return;
       if(e.shiftKey&&(document.activeElement===b[0]||!b.includes(document.activeElement))){e.preventDefault();b.at(-1).focus();}
       else if(!e.shiftKey&&(document.activeElement===b.at(-1)||!b.includes(document.activeElement))){e.preventDefault();b[0].focus();}
       return;
     }
     if(e.code==='Escape'&&!e.repeat){
-      e.preventDefault();if(dialog==='jobs'||dialog==='chapter')showTitle();
-      else if(dialog&&dialog!=='end'&&dialog!=='win')closeDialog();else if(!dialog)pause();return;
+      e.preventDefault();
+      if(dialog==='online')leaveRoom();
+      else if(dialog==='jobs'&&!net.joining)showCities();
+      else if(dialog==='cities'&&!net.connected)showTitle();
+      else if(dialog&&!['end','win','hostpause','waiting','jobs','cities'].includes(dialog))closeDialog();
+      else if(!dialog)pause();return;
     }
-    if(dialog==='jobs'&&!e.repeat&&/^[1-5]$/.test(e.key)){
-      e.preventDefault();const id=JOBS[Number(e.key)-1][0];startJob(id);return;
+    if(dialog==='jobs'&&!net.joining&&!e.repeat&&/^[1-6]$/.test(e.key)){
+      const job=JOBS[Number(e.key)-1];if(job){e.preventDefault();startJob(job[0]);}return;
     }
+    if(e.target.closest('input'))return;
     if(e.code==='KeyV'&&!e.repeat){toggleSound();return;}
     if(e.code==='KeyM'&&!e.repeat){e.preventDefault();openMap();return;}
     if(e.code==='Enter'&&phase==='title'&&!dialog&&!e.target.closest('button,a')){e.preventDefault();start();return;}
@@ -1006,8 +1167,8 @@
     }
   });
   document.addEventListener('keyup',e=>keys.delete(e.code));
-  addEventListener('blur',()=>{clearInput();if(!virtual&&phase==='play'&&!dialog)showDialog('pause');});
-  document.addEventListener('visibilitychange',()=>{selected=!document.hidden;if(!selected){clearInput();if(!virtual&&phase==='play'&&!dialog)showDialog('pause');}});
+  addEventListener('blur',()=>{clearInput();if(!net.connected&&!virtual&&phase==='play'&&!dialog)showDialog('pause');});
+  document.addEventListener('visibilitychange',()=>{selected=!document.hidden;if(!selected){clearInput();if(!net.connected&&!virtual&&phase==='play'&&!dialog)showDialog('pause');}});
   for(const b of document.querySelectorAll('[data-key]')){
     const code=b.dataset.key;
     b.addEventListener('pointerdown',e=>{
@@ -1029,6 +1190,7 @@
       goal:goal?{x:round(goal.x),y:round(goal.y),text:goal.text||goal.name}:null,
       mission:m?{id:m.id,name:m.job.name,stage:m.idx+1,stages:m.job.steps.length,kind:['van','choice','escort','action','stop'].find(k=>m.job.steps[m.idx][k])||'checkpoint',left:m.deadline?round(m.deadline-game.time):null,waitingForCar:m.pendingTimer,choose:!!m.job.steps[m.idx].choice,hold:round(m.hold),convoy:m.ally?{x:round(m.ally.car.x),y:round(m.ally.car.y)}:null}:null,
       campaign:{total:FINAL_COUNT,chapter:config.number,city:config.name,map:{width:W,height:H},completed:[...game.completed],remaining:JOBS.map(([id])=>id).filter(id=>!game.completed.has(id))},
+      coop:net.connected?{role:net.hosting?'host':'guest',partner:game.buddy?{x:round((game.buddy.car||game.buddy).x),y:round((game.buddy.car||game.buddy).y),carId:game.buddy.car?.id??null}:null}:null,
       gps:route?{dest:game.waypoint?'garage':'mission',meters:Math.round(route.length),points:route.points.map(q=>[round(q.x),round(q.y)])}:null,
       finished:game.won,garage:GARAGE,phones:PHONE,
       nearbyCars:game.cars.filter(c=>c.kind!=='traffic'&&dist(c,p)<350).map(c=>({x:round(c.x),y:round(c.y),id:c.id,type:c.type})),
@@ -1046,14 +1208,14 @@
     const dt=previous?Math.min(.1,(now-previous)/1000):0;previous=now;frames++;
     if(!fpsT)fpsT=now;
     if(now-fpsT>=800){set('debug',`2D / ${Math.round(frames*1000/(now-fpsT))} FPS`);fpsT=now;frames=0;}
-    if(!virtual&&phase==='play'&&!dialog){
+    if(!virtual&&!net.joining&&phase==='play'&&!dialog){
       acc+=dt;
       while(acc>=STEP){update(STEP);acc-=STEP;}
       uiT+=dt;if(uiT>.115){updateUI();uiT=0;}
     }else acc=0;
     music();render();loop=requestAnimationFrame(tick);
   }
-  addEventListener('pagehide',()=>{cancelAnimationFrame(loop);if(audio&&audio.state==='running')audio.suspend().catch(()=>{});});
+  addEventListener('pagehide',e=>{cancelAnimationFrame(loop);if(!e.persisted){net.close();clearInterval(networkTick);}if(audio&&audio.state==='running')audio.suspend().catch(()=>{});});
   addEventListener('pageshow',e=>{if(e.persisted){previous=0;loop=requestAnimationFrame(tick);}});
   loadChapter(0,false);
   mapArt.addEventListener('load',()=>{bakeCity();paintDirty=true;});

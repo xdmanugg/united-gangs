@@ -11,11 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./base.css">
-  <link rel="stylesheet" href="./style.css?v=4">
-  <link rel="stylesheet" href="./night.css?v=4">
-  <script src="./campaign.js?v=4" defer></script>
-  <script src="./city.js?v=4" defer></script>
-  <script src="./game.js?v=4" defer></script>
+  <link rel="stylesheet" href="./style.css?v=5">
+  <link rel="stylesheet" href="./night.css?v=5">
+  <script src="./campaign.js?v=5" defer></script>
+  <script src="./city.js?v=5" defer></script>
+  <script src="./net.js?v=5" defer></script>
+  <script src="./game.js?v=5" defer></script>
 </head>
 <body>
   <a class="skip" href="#stage">Saltar al juego</a>
@@ -52,11 +53,12 @@
           <div id="title-screen" class="title-screen">
             <span class="kicker">CAMPAÑA <b>/</b> 25 MISIONES</span>
             <h1 lang="en">UNITED<span>GANGS</span></h1>
-            <p>Dos bandas, cinco ciudades y una última noche en Miami.</p>
+            <p>Cuatro mapas para empezar. Un final en Miami. Juega solo o con un amigo.</p>
             <div class="hero-actions">
-              <button id="start-btn" class="primary" type="button"><svg class="icon"><use href="#i-play"/></svg> <span id="start-label">JUGAR</span></button>
-              <button id="tutorial" class="quiet" type="button"><svg class="icon"><use href="#i-keys"/></svg> Cómo jugar</button>
+              <button id="start-btn" class="primary" type="button"><svg class="icon"><use href="#i-play"/></svg> En solitario</button>
+              <button id="coop-btn" class="quiet" type="button">Cooperativo online</button>
             </div>
+            <button id="tutorial" class="hero-help" type="button"><svg class="icon"><use href="#i-keys"/></svg> Cómo jugar</button>
           </div>
           <div id="hud" class="hud" hidden>
             <div class="hud-top">
@@ -87,7 +89,7 @@
           </div>
           <div class="touch-actions"><button id="touch-map" type="button" aria-label="Abrir el mapa"><svg class="icon"><use href="#i-map"/></svg></button><button type="button" data-key="Space">FRENO</button><button type="button" data-key="KeyE" class="touch-use">ACCIÓN</button></div>
         </div>
-        <div class="statusbar"><span><i></i> <span id="state-label">ESPERANDO JUGADOR</span></span><span id="debug" aria-hidden="true">2D / 60 FPS</span><span class="build">UG<span>_</span>04</span></div>
+        <div class="statusbar"><span><i></i> <span id="state-label">ELIGE CÓMO JUGAR</span></span><span id="debug" aria-hidden="true">2D / 60 FPS</span><span class="build">UG<span>_</span>05</span></div>
       </section>
 
       <aside class="guidebox" aria-label="Guía de calle">
@@ -112,7 +114,7 @@
     </div>
 
     <section class="campaign-track" aria-labelledby="campaign-title">
-      <div class="track-heading"><h2 id="campaign-title">Ruta a Miami</h2><span>Completa 5 misiones para avanzar</span></div>
+      <div class="track-heading"><h2 id="campaign-title">Ruta a Miami</h2><span>24 misiones antes del final</span></div>
       <div class="track-scroll" tabindex="0"><ol id="chapter-list" aria-label="Capítulos de la campaña"></ol></div>
     </section>
 
