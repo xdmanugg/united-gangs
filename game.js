@@ -22,6 +22,7 @@
   const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
   const chapters=window.UnitedCampaign, FINAL_COUNT=chapters.reduce((n,c)=>n+Object.keys(c.jobs).length,0);
   const MIAMI=chapters.length-1,net=window.UnitedNet;
+  const atlas=window.UnitedEndless,{stations,playlist}=window.UnitedRadio;
   const progress=window.UnitedProgress,{SHOP}=progress,storyIds=new Set(chapters.flatMap(c=>Object.keys(c.jobs)));
   const FREE_JOB_TYPES=[
     {name:'Paquetería nocturna',tag:'Entrega',pay:850,xp:400,steps:['Recoge el paquete en el cruce señalizado.','Lleva el paquete al siguiente contacto.','Detente para entregar la mercancía.'],stop:2},
@@ -35,6 +36,7 @@
   const terrain=document.createElement('canvas'), world=terrain.getContext('2d',{alpha:false});
   const mapArt=new Image();
   let chapterIndex=0, config, W, H, X, Y, ALLEY, DOCK, PHONE, GARAGE, GARAGE_GOAL, JOB_SPAWN, contracts, JOBS;
+  let sector=null,sectorHint=-Infinity;
   let nodes=[], avenueNodes=[], links=[], blocks=[], collisionTiles=new Map();
   const chapterDone=()=>JOBS.reduce((n,[id])=>n+Number(game.completed.has(id)),0);
   const finaleReady=()=>chapters.slice(0,MIAMI).every(c=>Object.keys(c.jobs).every(id=>game.completed.has(id)));
@@ -44,11 +46,12 @@
     g.addColorStop(0,`rgba(${rgb},${opacity})`);g.addColorStop(.4,`rgba(${rgb},${opacity*.56})`);g.addColorStop(1,`rgba(${rgb},0)`);
     rect(o,x-radius,y-radius,radius*2,radius*2,g);
   }
-  function loadChapter(index,keep=true){
-    chapterIndex=index;config=chapters[index];W=config.w;H=config.h;X=config.x;Y=config.y;
+  function loadChapter(index,keep=true,nextSector=null){
+    sector=nextSector;
+    chapterIndex=sector?.biome??index;config=sector?.config??chapters[index];W=config.w;H=config.h;X=config.x;Y=config.y;
     contracts=config.jobs;JOBS=Object.entries(contracts);JOB_SPAWN=config.spawn;
-    ALLEY=index===0?{x:325,from:Y[0],to:Y[1]}:null;
-    DOCK=index===0?{y:1170,from:X[4],to:X[5],gates:[1635,1894]}:null;
+    ALLEY=!sector&&index===0?{x:325,from:Y[0],to:Y[1]}:null;
+    DOCK=!sector&&index===0?{y:1170,from:X[4],to:X[5],gates:[1635,1894]}:null;
     PHONE={p:{x:X[1]-39,y:Y[1]+19,color:LIME,name:'Los Pistones'},m:{x:X[X.length-2]+37,y:Y[Math.floor(Y.length/2)]-18,color:ORANGE,name:'La Marea'}};
     GARAGE={x:X[2]-40,y:Y[3]-23,color:CYAN};
     GARAGE_GOAL={...GARAGE,text:'Garaje',name:'Garaje'};
@@ -90,13 +93,55 @@
       }
     }
   }
+  function loadSector(x,y){
+    loadChapter(0,false,atlas.recipe(x,y,chapters));
+  }
+  function sameSector(x,y){return sector?.x===x&&sector?.y===y;}
+  function exitToward(x,y){
+    return sector?.gates.find(g=>g.dx===Math.sign(x-sector.x)&&g.dx!==0)
+      ||sector?.gates.find(g=>g.dy===Math.sign(y-sector.y)&&g.dy!==0);
+  }
+  function crossExit(){
+    if(!sector)return;
+    const team=actors(),near=(actor,g,rad)=>dist(actor.car||actor,g)<rad;
+    const gate=sector.gates.find(g=>team.some(a=>near(a,g,42)));
+    if(!gate||!atlas.valid(gate.nx,gate.ny))return;
+    if(!team.every(a=>near(a,gate,168))){
+      if(game.time>sectorHint+3){
+        sectorHint=game.time;notify('Reúnete con tu compañero en la salida para cruzar juntos.',3);
+      }
+      return;
+    }
+    const previous=game;
+    const incoming=atlas.recipe(gate.nx,gate.ny,chapters);
+    const entry=incoming.gates.find(g=>g.id===gate.opposite);
+    loadChapter(0,false,incoming);
+    Object.assign(game,{time:previous.time,mission:previous.mission,heat:previous.heat,spawn:.9,quiet:previous.quiet,safeUntil:previous.safeUntil});
+    if(game.mission)game.mission.hold=0;
+    game.cars=game.cars.filter(c=>!team.some(a=>a.car?.id===c.id));
+    const a=Math.atan2(gate.dy,gate.dx);
+    const placed=team.map((actor,i)=>{
+      const side=team.length===2?(i===0?-19:19):0;
+      const x=entry.x+gate.dx*79-gate.dy*side,y=entry.y+gate.dy*79+gate.dx*side;
+      const car=actor.car;
+      if(car){
+        const s=Math.min(145,Math.abs(car.s));
+        Object.assign(car,{x,y,a,s,vx:gate.dx*s,vy:gate.dy*s,node:undefined,previous:undefined,kind:'parked'});
+        game.cars.push(car);
+      }
+      return {...actor,x,y,a,car};
+    });
+    [game.player,game.buddy=null]=placed;
+    notify(`${config.name} · sector ${sector.x}, ${sector.y}`,4);
+    refreshShell();
+  }
 
   const palettes=['#75ebd1','#c9b7b5','#9ba5b9','#a95975','#568b91','#a797bc','#c78972','#7c889c'];
   const makeCar=(x,y,a,color,extra={})=>({x,y,a,color,s:0,vx:0,vy:0,hp:100,kind:'parked',type:extra.van?'van':'sedan',...extra});
   let game, phase='title', dialog=null, lastFocus=null, muted=true, best=0, selected=true, virtual=false, paintDirty=true;
   let roomStatus='Crea una sala o entra con el código de tu compañero.',guestMenu='',hostInput=0,hostInputAt=0,remoteAction=0,guestAction=0,soloBackup=null,lastRepairRequest=0;
   let width=1,height=1,dpr=1,viewScale=1,camera={x:0,y:0};
-  let audio=null,bus=null,engine=null,engineGain=null,nextBeat=0,beat=0;
+  let audio=null,bus=null,musicBus=null,engine=null,engineGain=null,nextBeat=0,beat=0,station=stations[0];
   const keys=new Set(), touches=new Map();
   function driveLink(xi,yi,rx,ry){
     return rx>=0&&rx<X.length&&ry>=0&&ry<Y.length&&
@@ -138,7 +183,8 @@
     game.cars.push(car);
   }
   function hits(x,y,r){
-    if(x<r+9||x>(config.coast??W)-8-r||y<r+8||y>H-r-8)return true;
+    const east=sector?.gates[1],shore=east&&Math.abs(y-east.y)<46-r?W:config.coast??W;
+    if(x<r+9||x>shore-8-r||y<r+8||y>H-r-8)return true;
     const canal=config.canal;
     if(canal!=null&&x+r>X[canal]+53&&x-r<X[canal+1]-53&&!config.bridges.some(i=>Math.abs(y-Y[i])<47-r))return true;
     if(DOCK&&!dockOpen()&&Math.abs(y-DOCK.y)<28+r&&DOCK.gates.some(g=>Math.abs(x-g)<3+r))return true;
@@ -178,6 +224,7 @@
       if(!audio){
         audio=new (window.AudioContext||window.webkitAudioContext)();
         bus=audio.createGain();bus.gain.value=.34;bus.connect(audio.destination);
+        musicBus=audio.createGain();musicBus.gain.value=station.beat?1:0;musicBus.connect(bus);
         engine=audio.createOscillator();engine.type='triangle';engine.frequency.value=37;
         engineGain=audio.createGain();engineGain.gain.value=0;
         const filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=135;
@@ -187,13 +234,13 @@
       nextBeat=audio.currentTime+.04;
     }catch{audio=null;}
   }
-  function tone(freq,len,type,volume,at,end){
+  function tone(freq,len,type,volume,at,end,output=bus){
     if(muted||!audio||!bus)return;
     at=at??audio.currentTime;
     const osc=audio.createOscillator(), g=audio.createGain();osc.type=type;
     osc.frequency.setValueAtTime(freq,at); if(end)osc.frequency.exponentialRampToValueAtTime(end,at+len);
     g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(volume,at+.013);g.gain.exponentialRampToValueAtTime(.0001,at+len);
-    osc.connect(g).connect(bus);osc.start(at);osc.stop(at+len+.02);
+    osc.connect(g).connect(output);osc.start(at);osc.stop(at+len+.02);
   }
   function effect(name){
     if(!audio||muted)return;
@@ -211,24 +258,36 @@
     const t=audio.currentTime, car=phase==='play'&&!dialog?game.player.car:null;
     engineGain.gain.setTargetAtTime(car?.s ? .06+Math.min(.12,Math.abs(car.s)/1900):0,t,.06);
     if(car)engine.frequency.setTargetAtTime(28+Math.abs(car.s)*.16,t,.05);
-    if(dialog||phase==='end'||phase==='win'){nextBeat=t+.04;return;}
+    if(!station.beat||(dialog&&dialog!=='radio')||phase==='end'||phase==='win'){nextBeat=t+.04;return;}
     if(nextBeat<t-.3)nextBeat=t+.035;
     while(nextBeat<t+.075){
-      const i=beat%16, root=[55,49,58.27,46.25][Math.floor(beat/16)%4];
-      if([0,3,6,8,10,13].includes(i))tone(root*(i===6||i===13?2:1),.25,'triangle',.18,nextBeat);
-      if([0,4,8,12].includes(i))tone(94,.16,'sine',.30,nextBeat,34);
-      if(i%2===1)tone(2100,.037,'triangle',.029,nextBeat,630);
-      if(i===2||i===10){tone(root*4,.23,'sine',.07,nextBeat);tone(root*6,.26,'sine',.051,nextBeat);}
-      beat++;nextBeat+=.145;
+      const i=beat%16, root=station.roots[Math.floor(beat/16)%station.roots.length];
+      const note=(f,d,w,v,tail)=>tone(f,d,w,v,nextBeat,tail,musicBus);
+      if(station.bass.includes(i))note(root*(i===6||i===13?2:1),station.soft?.85:.21,station.wave,.16);
+      if(station.kick.includes(i))note(station.drum,.16,'sine',station.soft?.13:.29,33);
+      if(station.hat.includes(i))note(2100,.041,'triangle',.027,630);
+      if(station.lead.includes(i))for(const [j,ratio] of station.intervals.entries()){
+        note(root*ratio*(i%3===0?1.125:1),station.soft?.94:.23+j*.04,'sine',.072-j*.022);
+      }
+      beat++;nextBeat+=station.beat;
     }
   }
-  function toggleSound(){
-    muted=!muted;
+  function setMuted(value){
+    muted=value;
     $('sound').setAttribute('aria-pressed',String(!muted));
     const tag=muted?'Activar sonido':'Silenciar';
     $('sound').setAttribute('aria-label',tag);$('sound').title=tag+' (V)';
     $('sound').querySelector('use').setAttribute('href',muted?'#i-mute':'#i-sound');
     if(muted&&audio)audio.suspend().catch(()=>{});else readyAudio();
+  }
+  function toggleSound(){setMuted(!muted);if(dialog==='radio')renderRadio();}
+  function tune(id,redraw=true){
+    const next=stations.find(s=>s.id===id);if(!next)return;
+    station=next;beat=0;setMuted(false);
+    if(musicBus)musicBus.gain.setTargetAtTime(next.beat?1:0,audio.currentTime,.018);
+    $('radio-btn').title=`Radio: ${station.name} (R)`;
+    set('radio-label',station.beat?station.name:station.id==='spotify'?'Spotify':'Radio');
+    if(redraw&&dialog==='radio'){renderRadio();$('dialog-content').querySelector(`[data-station="${id}"]`)?.focus({preventScroll:true});}
   }
 
   function notify(msg,seconds=3.4){game.msg=msg;game.msgUntil=game.time+seconds;paintDirty=true;}
@@ -252,6 +311,7 @@
     const m=game.mission;
     if(m){
       const goal=m.job.steps[m.idx];
+      if(m.job.sector&&!sameSector(...m.job.sector))return exitToward(...m.job.sector);
       if(goal.choice)return nearestPhone();
       if(goal.van&&m.van)return {...goal,x:m.van.x,y:m.van.y};
       if(goal.escort&&m.ally&&dist(m.ally.car,player())>205)return {...m.ally.car,text:'Vuelve con el convoy C'};
@@ -259,8 +319,8 @@
     }
     return null;
   }
-  function guideGoal(){return game.waypoint?GARAGE_GOAL:activeGoal();}
-  function guideColor(goal=guideGoal()){return goal===GARAGE_GOAL?CYAN:goal===PHONE.m||game.mission?.side==='m'?ORANGE:game.mission?.side==='x'&&goal!==PHONE.p?CYAN:LIME;}
+  function guideGoal(){return game.waypoint===true?GARAGE_GOAL:game.waypoint||activeGoal();}
+  function guideColor(goal=guideGoal()){return goal===GARAGE_GOAL||goal?.arrow?CYAN:goal===PHONE.m||game.mission?.side==='m'?ORANGE:game.mission?.side==='x'&&goal!==PHONE.p?CYAN:LIME;}
   function clearPursuit(){
     game.heat=0;game.police=[];game.block=null;game.blockAt=game.spawn=game.quiet=0;
   }
@@ -287,14 +347,15 @@
     notify(greeting,6);readyAudio();effect('job');
     phase='play';closeDialog(false);$('stage').focus({preventScroll:true});
   }
-  function freeJob(id,kind,points){
+  function freeJob(id,kind,points,location){
     const spec=FREE_JOB_TYPES[kind];
-    if(!spec||!Number.isSafeInteger(id)||id<1||!Array.isArray(points)||points.length!==spec.steps.length)return null;
-    const steps=points.map((ix,i)=>Number.isInteger(ix)&&nodes[ix]?{x:nodes[ix].x,y:nodes[ix].y,text:spec.steps[i],action:!!spec.walk,stop:i===spec.stop?2.4:0,alert:i===1?spec.heat:0}:null);
-    return steps.every(Boolean)?{...spec,side:'f',steps,serial:id,kind,points}:null;
+    if(!spec||!Number.isSafeInteger(id)||id<1||!Array.isArray(location)||location.length!==2||!atlas.valid(...location)||!Array.isArray(points)||points.length!==spec.steps.length)return null;
+    const map=sameSector(...location)?config:atlas.recipe(...location,chapters).config;
+    const steps=points.map((ix,i)=>Number.isInteger(ix)&&ix>=0&&ix<map.x.length*map.y.length?{x:map.x[ix%map.x.length],y:map.y[Math.floor(ix/map.x.length)],text:spec.steps[i],action:!!spec.walk,stop:i===spec.stop?2.4:0,alert:i===1?spec.heat:0}:null);
+    return steps.every(Boolean)?{...spec,side:'f',steps,serial:id,kind,points,sector:location}:null;
   }
   function startFreeJob(){
-    if(mode!=='free'||phase!=='play'||game.mission)return;
+    if(mode!=='free'||phase!=='play'||game.mission||!sector)return;
     if(net.joining){net.send({type:'command',cmd:'job'});return;}
     const kind=Math.floor(Math.random()*FREE_JOB_TYPES.length),points=[];
     let prev=player(),prevIx=-1;
@@ -307,7 +368,7 @@
       const ix=(pool[Math.floor(Math.random()*pool.length)]||[(prevIx+1)%nodes.length])[0];
       points.push(ix);prev=nodes[ix];prevIx=ix;
     }
-    const job=freeJob(++freeSerial,kind,points);
+    const job=freeJob(++freeSerial,kind,points,[sector.x,sector.y]);
     game.mission={id:`free-${freeSerial}`,side:'f',job,idx:0,hold:0,deadline:job.time?game.time+job.time:0,finishBy:0,pendingTimer:false,van:null,ally:null};
     game.waypoint=false;game.nav=null;notify(`Encargo #${job.serial}: ${job.name}.`,5);effect('job');updateUI();
   }
@@ -384,6 +445,7 @@
   function stepJob(dt){
     const m=game.mission;if(!m)return;
     if(timeLimit(m)&&game.time>timeLimit(m)){cancelJob('Se acabó el tiempo');return;}
+    if(m.job.sector&&!sameSector(...m.job.sector))return;
     const goal=m.job.steps[m.idx], team=actors();
     if(m.pendingTimer&&team.some(p=>p.car&&(!m.job.steps[0].van||p.car===m.van))){
       m.pendingTimer=false;m.deadline=game.time+m.job.time;
@@ -467,15 +529,16 @@
     const car=game.player.car;
     if(!car){notify('Sube a un coche para usar una llave inglesa.');return;}
     if(car.hp>=100){notify('El coche ya está en buen estado.');return;}
-    if(profile.wrenches<1){notify('No tienes llaves inglesas. Completa un encargo para conseguir una.');return;}
+    if(!progress.canRepair(profile)){notify('No tienes llaves inglesas. Completa un encargo para conseguir una.');return;}
     if(net.joining){
       if(pendingRepair)return;
       pendingRepair=++repairTag;const request=pendingRepair;
       net.send({type:'command',cmd:'repair',request});
       setTimeout(()=>{if(pendingRepair===request)pendingRepair=0;},4000);return;
     }
-    profile.wrenches--;car.hp=100;sparks(car.x,car.y,CYAN);effect('job');notify('Reparación completa · −1 llave inglesa.');updateUI();
+    progress.useWrench(profile);car.hp=100;sparks(car.x,car.y,CYAN);effect('job');notify(repairedText());updateUI();
   }
+  const repairedText=()=>profile.unlimitedWrenches?'Reparación completa · llaves infinitas.':'Reparación completa · −1 llave inglesa.';
   function flight(actor=game.player){
     if(phase!=='play'||dialog)return;
     if(net.joining){net.send({type:'command',cmd:'flight'});return;}
@@ -560,7 +623,7 @@
   function buildStreets(){
     nodes=Y.flatMap((y,yi)=>X.map((x,xi)=>({x,y,xi,yi})));
     const [A0,A1,D0,D1]=[nodes.length,nodes.length+1,nodes.length+2,nodes.length+3];
-    avenueNodes=ALLEY?nodes.concat([{x:ALLEY.x,y:ALLEY.from},{x:ALLEY.x,y:ALLEY.to},{x:DOCK.from,y:DOCK.y},{x:DOCK.to,y:DOCK.y}]):nodes;
+    avenueNodes=ALLEY?nodes.concat([{x:ALLEY.x,y:ALLEY.from},{x:ALLEY.x,y:ALLEY.to},{x:DOCK.from,y:DOCK.y},{x:DOCK.to,y:DOCK.y}]):nodes.slice();
     links=[];
     for(let yi=0;yi<Y.length;yi++)for(let xi=0;xi<X.length;xi++){
       const n=gridId(xi,yi);
@@ -574,6 +637,10 @@
       }
     }
     if(ALLEY)street(A0,A1,'alley');if(DOCK)street(D0,D1,'dock');
+    for(const g of sector?.gates||[]){
+      const id=avenueNodes.push(g)-1;
+      street(gridId(nearest(X,g.x),nearest(Y,g.y)),id,'exit');
+    }
   }
 
   function roadAnchor(p,edges){
@@ -737,10 +804,11 @@
     movement(dt);if(phase!=='play')return;
     if(game.buddy)movement(dt,game.buddy,performance.now()-hostInputAt<550?hostInput:0);
     if(phase!=='play')return;
+    crossExit();
     traffic(dt);chase(dt);if(phase!=='play')return;
     policeBlock();
     stepJob(dt);
-    if(game.waypoint&&dist(player(),GARAGE)<39){game.waypoint=false;notify('Garaje: destino alcanzado.');}
+    if(game.waypoint===true&&dist(player(),GARAGE)<39){game.waypoint=false;notify('Garaje: destino alcanzado.');}
     for(let i=game.particles.length-1;i>=0;i--){
       const p=game.particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.ttl-=dt;p.vx*=.94;p.vy*=.94;
       if(p.ttl<=0)game.particles.splice(i,1);
@@ -859,12 +927,26 @@
       ctx.strokeStyle='#1c1d35ae';ctx.lineWidth=5;ctx.stroke();ctx.strokeStyle=guideColor(target)+'b4';ctx.lineWidth=2.7;ctx.stroke();ctx.setLineDash([]);ctx.lineCap='butt';
     }
     const m=game.mission, choosing=m?.job.steps[m.idx].choice;
-    if(m&&!choosing&&!m.job.steps[m.idx].van){
+    if(m&&(!m.job.sector||sameSector(...m.job.sector))&&!choosing&&!m.job.steps[m.idx].van){
       const goal=m.job.steps[m.idx];marker(goal.x,goal.y,guideColor(goal),goal.action?'●':goal.stop?'Ⅱ':'+',!game.waypoint);
     }
     drawStreetChanges();
     if(!game.won){marker(PHONE.p.x,PHONE.p.y,LIME,'P',choosing||target===PHONE.p);marker(PHONE.m.x,PHONE.m.y,ORANGE,'M',choosing||target===PHONE.m);}
     marker(GARAGE.x,GARAGE.y,CYAN,'G',game.waypoint);
+    for(const g of sector?.gates||[]){
+      const a=Math.atan2(g.dy,g.dx),x=g.x-g.dx*58,y=g.y-g.dy*58;
+      ctx.save();ctx.translate(x,y);ctx.rotate(a);
+      for(const side of [-1,1]){rect(ctx,-47,side*41-2,91,4,'#9ed2ff');rect(ctx,-44,side*37-2,75,3,'#9ed2ff47');}
+      for(const step of [-31,-5,21])path(ctx,[[step+9,0],[step,12],[step-6,12],[step+2,0],[step-6,-12],[step,-12]],'#abdef7a0');
+      ctx.restore();
+      marker(g.x,g.y,CYAN,g.arrow,target===g);
+      if(dist(p,g)<260){
+        ctx.font='700 12px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+        const label=g.target.toUpperCase(),w=ctx.measureText(label).width+18;
+        rect(ctx,g.x-w/2,g.y-41,w,21,'#17152be8');
+        ctx.fillStyle=CYAN;ctx.fillText(label,g.x,g.y-30);
+      }
+    }
     const clue=secretLocation();
     if(clue&&mode==='free'&&dist(p,clue)<175)marker(clue.x,clue.y,'#f5d67b','?',!secretSeen);
     const visible=o=>o.x>camera.x-40&&o.x<camera.x+ww+40&&o.y>camera.y-40&&o.y<camera.y+wh+40;
@@ -908,6 +990,7 @@
       const p=avenueNodes[e.a];s+=`<path d="M${p.x} ${p.y}l${e.dx} ${e.dy}" stroke="${e.tag==='alley'?'#877494':'#626383'}" stroke-width="${e.tag==='alley'?12:17}"/>`;
     }
     for(const [x,y,label,color] of [[PHONE.p.x,PHONE.p.y,'P',LIME],[PHONE.m.x,PHONE.m.y,'M',ORANGE],[GARAGE.x,GARAGE.y,'G',CYAN]])s+=`<circle cx="${x}" cy="${y}" r="62" fill="#23213a" stroke="${color}" stroke-width="10"/><text x="${x}" y="${y+26}" fill="${color}" font-family="sans-serif" font-size="75" text-anchor="middle" font-weight="700">${label}</text>`;
+    for(const g of sector?.gates||[])s+=`<circle cx="${g.x}" cy="${g.y}" r="45" fill="#23213a" stroke="${CYAN}" stroke-width="9"/><text x="${g.x}" y="${g.y+20}" fill="${CYAN}" font-family="sans-serif" font-size="60" text-anchor="middle" font-weight="700">${g.arrow}</text>`;
     return s;
   };
   let staticMap='';
@@ -917,7 +1000,7 @@
     const dock=DOCK?`<path d="M${DOCK.from} ${DOCK.y}H${DOCK.to}" stroke="${dockOpen()?'#82d4c0':'#887068'}" stroke-width="14" ${dockOpen()?'':'stroke-dasharray="18 16"'}/>`:'';
     const block=b?`<path d="M${b.x-17} ${b.y-17}l34 34m0-34-34 34" stroke="${RED}" stroke-width="13"/>`:'';
     const line=route?.points.length>1?`<polyline data-gps="true" points="${route.points.map(q=>[Math.round(q.x),Math.round(q.y)].join(',')).join(' ')}" fill="none" stroke="${guideColor(goal)}" stroke-width="16" stroke-linejoin="round"/>`:'';
-    const marked=goal===GARAGE_GOAL||game.mission&&!game.mission.job.steps[game.mission.idx].choice;
+    const marked=goal===GARAGE_GOAL||goal?.arrow||game.mission&&!game.mission.job.steps[game.mission.idx].choice;
     const ally=game.mission?.ally?.car;
     const other=game.buddy?.car||game.buddy;
     return dock+line+red+block+(ally?`<circle cx="${ally.x}" cy="${ally.y}" r="31" fill="#ffbf83"/>`:'')+(goal&&marked?`<circle cx="${goal.x}" cy="${goal.y}" r="55" fill="none" stroke="${guideColor(goal)}" stroke-width="11"/>`:'')+(other?`<circle cx="${other.x}" cy="${other.y}" r="33" fill="${ORANGE}" stroke="#1f2139" stroke-width="8"/>`:'')+`<circle cx="${p.x}" cy="${p.y}" r="36" fill="#fff0f7" stroke="#1f2139" stroke-width="9"/>`;
@@ -927,7 +1010,7 @@
   let uiT=0,personalMessage='',personalUntil=0;
   function updateUI(){
     const c=game.player.car,p=player(),m=game.mission,goal=activeGoal();
-    set('cash',`${fmt(profile.cash)} CR`);set('wrench-stock',`${profile.wrenches} ${profile.wrenches===1?'llave':'llaves'}`);
+    set('cash',`${fmt(profile.cash)} CR`);set('wrench-stock',profile.unlimitedWrenches?'∞ llaves':`${profile.wrenches} ${profile.wrenches===1?'llave':'llaves'}`);
     set('condition-label',c?.air?'EN VUELO':c?CAR_TYPES[c.type].name.toUpperCase():'ENERGÍA');$('integrity').value=p.hp;
     $('free-job').hidden=mode!=='free'||phase!=='play';$('free-job').disabled=!!m||!!dialog;
     $('touch-flight').hidden=c?.type!=='hover';
@@ -974,6 +1057,7 @@
       let objective=stage.text;
       if(choice)objective='Acércate con la furgoneta a P para el deportivo o a M para el atajo. La entrega es automática.';
       else if(m.pendingTimer)objective=`Sube a ${source} para iniciar el cronómetro.`;
+      else if(goal?.arrow)objective=`El encargo sigue en el sector ${m.job.sector.join(', ')}. Toma la salida ${goal.name.toLowerCase()} para volver.`;
       else if(stage.stop)objective+=` Quédate parado ${Math.ceil(stage.stop)} s dentro de la marca.`;
       else if(stage.escort)objective=goal?.kind==='ally'?'Vuelve con el convoy C: se ha detenido.':`${objective} Mantente cerca del convoy C.`;
       if(!c&&!m.pendingTimer&&!stage.van&&!stage.action&&!choice&&!game.buddy)objective='Sube a un coche. '+objective;
@@ -985,11 +1069,12 @@
     }else{
       const title=phase==='title',remaining=JOBS.length-chapterDone();
       set('brief-title',mode==='free'?'Patrulla libre':game.won?'Campaña completa':title?config.subtitle:remaining===0?'Mapa completado':'Elige una misión');
-      set('brief-text',mode==='free'?'Explora por tu cuenta o pulsa J / Encargo para recibir una secundaria nueva.':game.won?'Las 25 misiones están completas.':title?config.story:remaining===0?'Ya completaste todas las misiones de este mapa.':`Queda${remaining===1?'':'n'} ${remaining} ${remaining===1?'misión':'misiones'} en ${config.name}. Puedes hacerlas en el orden que quieras.`);
+      set('brief-text',mode==='free'?'Sigue las salidas del mapa para explorar más sectores o pulsa J para pedir un encargo.':game.won?'Las 25 misiones están completas.':title?config.story:remaining===0?'Ya completaste todas las misiones de este mapa.':`Queda${remaining===1?'':'n'} ${remaining} ${remaining===1?'misión':'misiones'} en ${config.name}. Puedes hacerlas en el orden que quieras.`);
     }
     if(game.waypoint){
-      set('mission-distance',`GPS · Garaje · ${Math.round(route?.length??dist(p,GARAGE))} m`);
-      $('mission-distance').hidden=false;set('mobile-goal-progress','GPS');set('mobile-goal-text','Sigue la ruta azul para llegar al garaje.');
+      const dest=guideGoal();
+      set('mission-distance',`GPS · ${dest.name} · ${Math.round(route?.length??dist(p,dest))} m`);
+      $('mission-distance').hidden=false;set('mobile-goal-progress','GPS');set('mobile-goal-text',dest.arrow?dest.text:'Sigue la ruta azul para llegar al garaje.');
     }
     $('mini-live').innerHTML=liveMap();
   }
@@ -1002,13 +1087,19 @@
     $('fs-pause').disabled=phase!=='play'||!!dialog;
     $('map-btn').disabled=phase!=='title'&&phase!=='play';
     $('pause').setAttribute('aria-pressed',String(dialog==='pause'));
-    for(const id of ['shop-btn','pass-btn','fs-btn'])$(id).tabIndex=dialog?-1:0;
+    for(const id of ['shop-btn','pass-btn','radio-btn','fs-btn'])$(id).tabIndex=dialog?-1:0;
     $('shop-btn').disabled=$('pass-btn').disabled=!!dialog;
+    $('radio-btn').disabled=!!dialog;
     set('state-label',net.connected?'LIBRE ONLINE · '+(net.hosting?'J1':'J2'):dialog==='pause'?'PARTIDA EN PAUSA':dialog==='map'?'PLANO DE LA CIUDAD':phase==='title'?'ELIGE CÓMO JUGAR':phase==='board'?'CENTRAL DE ENCARGOS':phase==='select'?'SELECCIÓN DE MAPA':phase==='end'?'FUERA DE SERVICIO':phase==='win'?'CAMPAÑA COMPLETA':mode==='free'?'MODO LIBRE':'HISTORIA LOCAL');
-    set('city-stamp',config.stamp);set('city-header',config.name);
+    set('city-stamp',sector?`SECTOR ${sector.x}, ${sector.y}`:config.stamp);set('city-header',config.name);
+    set('mini-title',sector?'MAPA DEL SECTOR':'PLANO DE LA CIUDAD');
+    set('mini-caption',sector?'Flechas: salidas · G: garaje':'P / M: teléfonos · G: garaje');
+    set('campaign-title',sector?'Distritos vecinos':'Ruta a Miami');
+    set('track-detail',sector?'Cuatro salidas · modo libre':'24 misiones antes del final');
+    $('chapter-list').setAttribute('aria-label',sector?'Distritos vecinos':'Capítulos de la campaña');
     canvas.setAttribute('aria-label',`${config.name}, vista cenital`);
     $('mini').setAttribute('aria-label',`Mapa de ${config.name}`);
-    $('chapter-list').innerHTML=chapters.map((c,i)=>{
+    $('chapter-list').innerHTML=sector?sector.gates.map(g=>`<li data-status="open"><span class="chapter-number">${g.arrow}</span><span class="chapter-name">${g.target}</span><span class="chapter-score">${g.name}</span></li>`).join(''):chapters.map((c,i)=>{
       const ids=Object.keys(c.jobs),done=ids.filter(id=>game.completed.has(id)).length;
       const status=done===ids.length?'complete':i===chapterIndex?'active':i===MIAMI&&!finaleReady()?'locked':'open';
       return `<li data-status="${status}" ${i===chapterIndex?'aria-current="step"':''}><span class="chapter-number">0${i+1}</span><span class="chapter-name">${c.name}</span><span class="chapter-score" aria-label="${done} de ${ids.length} misiones">${done}/${ids.length}</span></li>`;
@@ -1019,6 +1110,7 @@
   function start(){
     if(net.busy)leaveRoom(false);
     mode='story';clearInput();readyAudio();effect('job');
+    if(sector)loadChapter(0,false);
     if(game.won){phase='win';showDialog('win');}
     else showCities();
   }
@@ -1034,12 +1126,15 @@
     if(net.joining||!Number.isInteger(index)||!chapters[index])return;
     if(mode==='free'){
       if(index===MIAMI)return;
-      loadChapter(index);phase='play';closeDialog(false);$('stage').focus({preventScroll:true});
-      notify('Modo libre · pulsa J o Encargo para aceptar una secundaria.',6);return;
+      enterFree(...atlas.starts[index]);return;
     }
     if(net.connected||index===MIAMI&&!finaleReady()||game.won)return;
     if(index!==chapterIndex)loadChapter(index);
     showBoard();
+  }
+  function enterFree(x,y){
+    loadSector(x,y);sectorHint=-Infinity;phase='play';closeDialog(false);$('stage').focus({preventScroll:true});
+    notify('Sigue las flechas del mapa para explorar o pulsa J para pedir un encargo.',6);
   }
   function showOnline(){
     mode='free';phase='title';
@@ -1074,18 +1169,18 @@
   function sendSnapshot(){
     if(!net.hosting||!net.connected||!game.buddy)return;
     const m=game.mission;
-    net.send({type:'state',world:chapterIndex,phase,menu:dialog||'',t:quant(game.time),heat:game.heat,reward:latestReward,end:game.endReason,
+    net.send({type:'state',sector:sector?[sector.x,sector.y]:atlas.starts[0],phase,menu:dialog||'',t:quant(game.time),heat:game.heat,reward:latestReward,end:game.endReason,
       msg:game.msg,until:game.msgUntil,car:game.cars.map(carWire),cop:game.police.map(carWire),p:[actorWire(game.player),actorWire(game.buddy)],
       block:game.block&&{id:game.block.id,x:game.block.x,y:game.block.y,dx:game.block.dx},
-      m:m&&[m.job.serial,m.job.kind,m.job.points,m.idx,m.deadline,m.hold]});
+      m:m&&[m.job.serial,m.job.kind,m.job.points,m.idx,m.deadline,m.hold,m.job.sector]});
   }
   function receiveSnapshot(d){
-    if(!Number.isInteger(d.world)||d.world<0||d.world>=MIAMI||!['select','wait','play','end'].includes(d.phase)
+    if(!Array.isArray(d.sector)||d.sector.length!==2||!atlas.valid(...d.sector)||!['select','wait','play','end'].includes(d.phase)
       ||!Array.isArray(d.car)||d.car.length>130||!Array.isArray(d.cop)||d.cop.length>8
       ||!Array.isArray(d.p)||d.p.length!==2||d.p.some(p=>!Array.isArray(p)||!p.slice(0,4).every(Number.isFinite))
       ||!Number.isFinite(d.t))return;
-    const changedWorld=d.world!==chapterIndex;
-    if(changedWorld)loadChapter(d.world,false);
+    const changedWorld=!sameSector(...d.sector);
+    if(changedWorld)loadSector(...d.sector);
     const parseCar=v=>({id:v[0],x:v[1],y:v[2],a:v[3],s:v[4],hp:v[5],type:Object.hasOwn(CAR_TYPES,v[6])?v[6]:'sedan',
       color:typeof v[7]==='string'&&/^#[0-9a-f]{6}$/i.test(v[7])?v[7]:CYAN,kind:v[8],van:!!(v[9]&1),starter:!!(v[9]&2),reward:!!(v[9]&4),job:!!(v[9]&8),air:!!(v[9]&16)&&v[6]==='hover',role:v[10]});
     const parseActor=v=>({x:v[0],y:v[1],a:v[2],hp:v[3],car:v[4]===null?null:byId.get(v[4])||null});
@@ -1100,9 +1195,9 @@
       if(prize){seenReward=d.reward;profile.freeDone++;progress.earn(profile,prize.pay,prize.xp);syncProfile();}
     }
     const v=d.m,prior=game.mission?.job;
-    const job=Array.isArray(v)?prior?.serial===v[0]&&prior.kind===v[1]?prior:freeJob(v[0],v[1],v[2]):null;
+    const job=Array.isArray(v)?prior?.serial===v[0]&&prior.kind===v[1]?prior:freeJob(v[0],v[1],v[2],v[6]):null;
     game.mission=job&&Number.isInteger(v[3])&&job.steps[v[3]]?{id:`free-${job.serial}`,side:'f',job,idx:v[3],deadline:Number(v[4])||0,finishBy:0,pendingTimer:false,hold:Number(v[5])||0,van:null,ally:null}:null;
-    const next=`${d.world}/${d.phase}/${d.menu}`;
+    const next=`${d.phase}/${d.menu}`;
     if(next!==guestMenu){
       guestMenu=next;
       if(d.phase==='play'&&!d.menu){
@@ -1123,13 +1218,12 @@
     hostInputAt=hostInput=remoteAction=guestAction=0;guestMenu='';
     mode='free';seenReward=latestReward=lastRepairRequest=0;buddyRide='stock';
     if(net.hosting){
-      if(chapterIndex===MIAMI)loadChapter(0);
-      spawnBuddy(...JOB_SPAWN);
+      loadSector(...atlas.starts[0]);
       showCities();
       sendSnapshot();
     }else{
       soloBackup=chapterIndex;
-      loadChapter(chapterIndex===MIAMI?0:chapterIndex,false);phase='wait';showDialog('waiting');sendInput();sendRide();
+      loadSector(...atlas.starts[0]);phase='wait';showDialog('waiting');sendInput();sendRide();
     }
   };
   net.onLost=msg=>{leaveRoom(false);showOnline();roomStatus=msg;renderLobby();};
@@ -1159,7 +1253,7 @@
       if(d.type==='notice'&&typeof d.msg==='string')showPersonal(d.msg.slice(0,170));
       if(d.type==='repaired'&&pendingRepair&&pendingRepair===d.request){
         pendingRepair=0;
-        if(d.ok===true){profile.wrenches=Math.max(0,profile.wrenches-1);showPersonal('Reparación completa · −1 llave inglesa.');}
+        if(d.ok===true&&progress.useWrench(profile))showPersonal(repairedText());
       }
     }
   };
@@ -1170,7 +1264,7 @@
     if(net.hosting)sendSnapshot();
     if(net.joining){sendInput();if(phase==='play'&&!dialog)updateUI();}
   },45);
-  const sideDialogs=['shop','pass','save'];
+  const sideDialogs=['shop','pass','save','radio'];
   function openSide(kind,from=dialog){
     if(!sideDialogs.includes(from))backDialog=from;
     showDialog(kind);
@@ -1180,8 +1274,8 @@
     if(from)showDialog(from);else closeDialog();
   }
   function renderShop(){
-    $('dialog-content').innerHTML=`<div class="arcade-summary"><div><span>SALDO DISPONIBLE</span><strong>${fmt(profile.cash)} CR</strong></div><div><span>INVENTARIO</span><strong>${icon('wrench')} ${profile.wrenches}</strong></div></div>
-      <p>Compra con créditos del juego. El vehículo equipado aparece en tu próxima salida o al cambiar de mapa.</p>
+    $('dialog-content').innerHTML=`<div class="arcade-summary"><div><span>SALDO DISPONIBLE</span><strong>${fmt(profile.cash)} CR</strong></div><div><span>INVENTARIO</span><strong>${icon('wrench')} ${profile.unlimitedWrenches?'∞ llaves':profile.wrenches}</strong></div></div>
+      <p>Compra con créditos del juego. El vehículo equipado aparece en tu próxima salida. Al cruzar a otro sector, conservas el coche que conduces.</p>
       <div class="garage-cards">${Object.entries(SHOP).map(([id,v])=>{
         const owned=profile.owned.includes(id),equipped=profile.equipped===id,locked=v.price===null&&!owned;
         const label=equipped?'Equipado':owned?'Equipar':locked?'Nivel 50':`${fmt(v.price)} CR`;
@@ -1195,11 +1289,18 @@
       <div class="pass-meter"><progress value="${profile.unlocked?fill:0}" max="100" aria-label="Progreso del nivel"></progress><span>${label}</span></div>
       <p>${profile.unlocked?'Gana XP en la historia o en secundarias. Cada 500 XP sube un nivel; los hitos entregan su recompensa automáticamente.':'Termina la historia para desbloquear el pase. La XP que ganes mientras está bloqueado se acumula.'}</p>
       <ol class="pass-grid" aria-label="50 niveles del pase">${Array.from({length:cap},(_,i)=>i+1).map(n=>{
-        const reward=n%5===0?progress.rewardFor(n):'';
+        const reward=progress.rewardFor(n);
         return `<li class="${n<=level?'earned':''} ${reward?'milestone':''} ${n===cap?'top-rank':''}" title="${reward||'Nivel '+n}"><span>${String(n).padStart(2,'0')}</span>${reward?`<small>${reward}</small>`:''}</li>`;
       }).join('')}</ol>
-      ${profile.master?'':`<form id="pass-form" class="arcade-form"><label for="pass-code">Código oculto</label><div><input id="pass-code" maxlength="18" autocomplete="off" spellcheck="false" placeholder="Escribe el código"><button class="secondary" type="submit">Canjear</button></div><small>Pista: busca cerca del observatorio de Sierra Eléctrica en modo libre.</small></form>`}
+      <form id="pass-form" class="arcade-form"><label for="pass-code">Código oculto</label><div><input id="pass-code" maxlength="18" autocomplete="off" spellcheck="false" placeholder="Escribe el código"><button class="secondary" type="submit">Canjear</button></div><small>${profile.unlimitedWrenches?'Inventario: llaves infinitas. ':''}${profile.master?'Has canjeado el código del pase.':'Pista: busca cerca del observatorio de Sierra Eléctrica en modo libre.'}</small></form>
       <p id="pass-message" class="arcade-feedback" role="status"></p>`;
+  }
+  function renderRadio(){
+    $('dialog-content').innerHTML=`<div class="radio-readout"><div><span>EN EL DIAL</span><strong>${station.freq} <b>${station.name}</b></strong></div><span aria-live="polite">${muted?'SONIDO EN PAUSA':station.beat?'EN EMISIÓN':station.genre.toUpperCase()}</span></div>
+      <div class="radio-grid" aria-label="Emisoras">${stations.map(s=>s.id==='spotify'
+        ?`<a class="radio-channel" data-station="${s.id}" href="${playlist}" target="_blank" rel="noopener noreferrer" style="--station:${s.color}"><span>EXT · EN OTRA PESTAÑA</span><strong>Abrir playlist en Spotify ↗</strong><small>${s.desc}</small></a>`
+        :`<button class="radio-channel" type="button" data-station="${s.id}" aria-pressed="${station===s}" style="--station:${s.color}"><span>${s.freq} ${s.beat?'FM':'· SIN MÚSICA'}</span><strong>${s.name}</strong><small>${s.genre}</small></button>`
+      ).join('')}</div><p class="radio-note"><strong>V</strong> silencia todo. <strong>Solo efectos</strong> deja el motor y los avisos activos.</p>`;
   }
   function renderSave(){
     $('dialog-content').innerHTML=`<p>El juego conserva tu progreso mientras la página esté abierta. Copia este respaldo para continuar otro día en cualquier navegador.</p>
@@ -1221,18 +1322,19 @@
     clearInput();dialog=kind;
     const panel=$('overlay-panel'), body=$('dialog-content'),actions=$('dialog-actions');
     panel.classList.toggle('map-dialog',kind==='map');
+    panel.classList.toggle('atlas-dialog',kind==='map'&&!!sector);
     panel.classList.toggle('board-dialog',kind==='jobs'||kind==='cities'||sideDialogs.includes(kind));
     panel.classList.toggle('arcade-dialog',sideDialogs.includes(kind));
     $('close-overlay').hidden=['end','win','jobs','cities','online','waiting','hostpause'].includes(kind);
     const labels={jobs:[`${chapterIndex===MIAMI?'MISIÓN FINAL':'CENTRAL DE ENCARGOS'} / ${config.name.toUpperCase()}`, net.joining?'El anfitrión elige':'Elige una misión'],
-      cities:[net.connected?'MODO LIBRE · JUGADOR 1':mode==='free'?'MODO LIBRE LOCAL':'HISTORIA LOCAL','Elige un mapa'],online:['MODO LIBRE · 2 JUGADORES','Juega en línea'],
+      cities:[net.connected?'MODO LIBRE · JUGADOR 1':mode==='free'?'MODO LIBRE LOCAL':'HISTORIA LOCAL',mode==='free'?'Elige dónde empezar':'Elige un mapa'],online:['MODO LIBRE · 2 JUGADORES','Juega en línea'],
       waiting:['COOPERATIVO · JUGADOR 2','En la sala'],hostpause:['COOPERATIVO · JUGADOR 2','Partida en espera'],
-      help:['MANUAL DE CALLE','Cómo jugar'],map:[`NAVEGACIÓN / ${config.name.toUpperCase()}`,'Plano de la ciudad'],pause:['TRANSMISIÓN EN PAUSA','Partida en pausa'],end:['TRANSMISIÓN INTERRUMPIDA','Fuera de servicio'],win:['CAMPAÑA COMPLETA · 25/25','United Gangs'],
-      shop:['GARAJE / INVENTARIO','Tienda de coches'],pass:['RECOMPENSAS / 50 NIVELES','Pase de batalla'],save:['PERFIL / GUARDADO MANUAL','Respaldo de partida']};
+      help:['MANUAL DE CALLE','Cómo jugar'],map:[`NAVEGACIÓN / ${config.name.toUpperCase()}`,sector?'Mapa del sector':'Plano de la ciudad'],pause:['TRANSMISIÓN EN PAUSA','Partida en pausa'],end:['TRANSMISIÓN INTERRUMPIDA','Fuera de servicio'],win:['CAMPAÑA COMPLETA · 25/25','United Gangs'],
+      shop:['GARAJE / INVENTARIO','Tienda de coches'],pass:['RECOMPENSAS / 50 NIVELES','Pase de batalla'],save:['PERFIL / GUARDADO MANUAL','Respaldo de partida'],radio:['AUDIO / DIAL NOCTURNO','Radio de United Gangs']};
     set('dialog-kicker',labels[kind][0]);set('dialog-title',labels[kind][1]);
     let buttons=[];
     if(sideDialogs.includes(kind)){
-      if(kind==='shop')renderShop();else if(kind==='pass')renderPass();else renderSave();
+      if(kind==='shop')renderShop();else if(kind==='pass')renderPass();else if(kind==='radio')renderRadio();else renderSave();
       buttons=[['Cerrar','close',true],...(kind==='pass'&&!net.connected&&phase==='title'?[['Respaldo de partida','save']]:[])];
     }else if(kind==='jobs'){
       const report=game.lastReport;
@@ -1246,8 +1348,8 @@
       }
       buttons=[['Cambiar mapa','cities'],['Tienda','shop'],['Pase','pass']];
     }else if(kind==='cities'){
-      body.innerHTML=`<p class="cities-intro">${mode==='free'?'Explora cuatro ciudades y acepta tantas secundarias como quieras. Miami es exclusivo del final de la historia.':'Elige cualquiera de las cuatro ciudades. Miami se abre cuando completas las otras 24 misiones.'}</p>
-        <div class="cities-grid">${chapters.map((c,i)=>{
+      body.innerHTML=`<p class="cities-intro">${mode==='free'?'Elige tu primer distrito. Las salidas conectan un mundo sin final, con encargos ilimitados y un distrito Art Déco inspirado en Miami.':'Elige cualquiera de las cuatro ciudades. Miami se abre cuando completas las otras 24 misiones.'}</p>
+        <div class="cities-grid">${(mode==='free'?chapters.slice(0,MIAMI):chapters).map((c,i)=>{
           const ids=Object.keys(c.jobs),done=ids.filter(x=>game.completed.has(x)).length,locked=i===MIAMI&&(mode==='free'||!finaleReady());
           return `<button type="button" class="city-card" data-world="${i}" data-theme="${c.style}" ${locked?'disabled':''}>
             <span class="city-index">0${i+1}</span><span class="city-name">${c.name}</span><span class="city-progress">${locked?'EXCLUSIVA · MISIÓN FINAL':mode==='free'?'EXPLORA / ENCARGOS INFINITOS':i===MIAMI?'MISIÓN FINAL DISPONIBLE':`${done}/${ids.length} ${done===ids.length?'COMPLETADAS':'MISIONES'}`}</span>${locked?'':icon('arrow')}
@@ -1260,14 +1362,18 @@
       body.innerHTML=`<p>${kind==='waiting'?'Conectado. El anfitrión está eligiendo un mapa.':'El anfitrión abrió un menú. La partida se reanudará cuando lo cierre.'}</p>`;
       buttons=[['Salir de la sala','leave']];
     }else if(kind==='help'){
-      body.innerHTML='<p>La historia es local. El modo libre tiene encargos sin límite, en solitario o en cooperativo.</p><ul><li><strong>WASD / flechas:</strong> caminar y conducir. <strong>E:</strong> entra, sal o usa el garaje.</li><li><strong>Espacio:</strong> usa una llave inglesa para reparar el coche. <strong>Mayús:</strong> freno de mano.</li><li><strong>H:</strong> despega o aterriza con el Halo X-9. Las misiones se completan desde tierra.</li><li><strong>J:</strong> pide un encargo en modo libre. Los objetivos saltan como avisos de radio.</li><li><strong>M:</strong> mapa. <strong>F:</strong> pantalla completa. <strong>Esc:</strong> menú.</li></ul>';
+      body.innerHTML='<p>La historia es local. En modo libre puedes seguir las salidas hacia distritos nuevos, en solitario o junto a tu compañero en cooperativo.</p><ul><li><strong>WASD / flechas:</strong> caminar y conducir. <strong>E:</strong> entra, sal o usa el garaje.</li><li><strong>Espacio:</strong> repara el coche. <strong>Mayús:</strong> freno de mano.</li><li><strong>H:</strong> vuela con el Halo X-9. Las misiones se completan desde tierra.</li><li><strong>J:</strong> pide un encargo. <strong>R:</strong> elige emisora. <strong>V:</strong> silencia todo.</li><li><strong>M:</strong> mapa. <strong>F:</strong> pantalla completa. <strong>Esc:</strong> menú.</li></ul>';
       buttons=[['Entendido','close',true]];
     }else if(kind==='map'){
-      body.innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="map-large" role="img" aria-label="Mapa de juego de ${config.name} con tu ruta">${staticMap+liveMap()}</svg><div class="legend"><span><b style="color:${LIME}">P</b>Pistones</span><span><b style="color:${ORANGE}">M</b>La Marea</span><span><b style="color:${CYAN}">G</b>Garaje</span><span><b>●</b>Tú</span><span><b style="color:${RED}">●</b>Patrulla</span><span><b style="color:${RED}">×</b>Bloqueo</span>${config.style==='miami'?'<span>Escenario ficticio inspirado en <a href="https://www.miamiandbeaches.com/neighborhoods/south-beach" target="_blank" rel="noopener noreferrer">South Beach</a>.</span>':''}</div>`;
-      buttons=[['Cerrar mapa','close',true],...(phase==='play'?[[game.waypoint?'Quitar destino GPS':'Marcar garaje','waypoint']]:[])];
+      body.innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="map-large" role="img" aria-label="Mapa de juego de ${config.name} con tu ruta">${staticMap+liveMap()}</svg>${sector?`<p class="atlas-note">Sector ${sector.x}, ${sector.y}. Marca una salida y conduce hasta la flecha para cruzar${net.connected?' con tu compañero':''}.</p><div class="atlas-exits">${sector.gates.map(g=>`<button class="secondary" type="button" data-exit="${g.id}"><b>${g.arrow} ${g.name}</b><span>${g.target} · ${g.nx}, ${g.ny}</span></button>`).join('')}</div>`:`<div class="legend"><span><b style="color:${LIME}">P</b>Pistones</span><span><b style="color:${ORANGE}">M</b>La Marea</span><span><b style="color:${CYAN}">G</b>Garaje</span><span><b>●</b>Tú</span><span><b style="color:${RED}">●</b>Patrulla</span><span><b style="color:${RED}">×</b>Bloqueo</span>${config.style==='miami'?'<span>Escenario ficticio inspirado en <a href="https://www.miamiandbeaches.com/neighborhoods/south-beach" target="_blank" rel="noopener noreferrer">South Beach</a>.</span>':''}</div>`}`;
+      buttons=[['Cerrar mapa','close',true]];
+      if(phase==='play'){
+        if(game.waypoint!==true)buttons.push(['Marcar garaje','waypoint']);
+        if(game.waypoint)buttons.push(['Quitar GPS','clear-gps']);
+      }
     }else if(kind==='pause'){
       body.innerHTML=net.joining?'<p>Este menú no detiene la partida del anfitrión.</p>':'<p>La ciudad y los cronómetros se han detenido.</p>';
-      buttons=[['Continuar','close',true],['Tienda','shop'],['Pase de batalla','pass'],['Cómo jugar','pause-help'],...(!net.joining&&game.mission?[['Abandonar encargo','abort']]:[]),
+      buttons=[['Continuar','close',true],['Tienda','shop'],['Pase de batalla','pass'],['Radio','radio'],['Cómo jugar','pause-help'],...(!net.joining&&game.mission?[['Abandonar encargo','abort']]:[]),
         ...(!net.joining?[['Cambiar mapa','cities']]:[]),net.connected?['Salir de la sala','leave']:['Volver al inicio','title']];
     }else{
       body.innerHTML=`<p id="outcome"></p><p>Campaña: <strong>${game.missionDone}/${FINAL_COUNT}</strong> · Efectivo: <strong>${fmt(game.cash)} CR</strong><br>Récord de esta sesión: <strong>${fmt(best)} CR</strong></p>`;
@@ -1298,6 +1404,7 @@
   function showTitle(reset=false){
     mode='story';backDialog=null;
     if(reset){profile.story=progress.fresh().story;loadChapter(0,false);}
+    else if(sector)loadChapter(0,false);
     else{game.mission=null;game.waypoint=false;clearPursuit();}
     phase='title';closeDialog(false);$('start-btn').focus({preventScroll:true});
   }
@@ -1312,6 +1419,7 @@
   $('free-job').addEventListener('click',()=>{startFreeJob();$('stage').focus({preventScroll:true});});
   $('shop-btn').addEventListener('click',()=>openSide('shop'));
   $('pass-btn').addEventListener('click',()=>openSide('pass'));
+  $('radio-btn').addEventListener('click',()=>openSide('radio'));
   $('fs-btn').addEventListener('click',()=>{toggleFullscreen();if(!dialog)$('stage').focus({preventScroll:true});});
   $('sound').addEventListener('click',toggleSound);
   $('pause').addEventListener('click',pause);
@@ -1321,6 +1429,16 @@
   $('touch-map').addEventListener('click',openMap);
   $('close-overlay').addEventListener('click',()=>sideDialogs.includes(dialog)?closeSide():closeDialog());
   $('dialog-content').addEventListener('click',e=>{
+    if(dialog==='radio'){
+      const channel=e.target.closest('[data-station]')?.dataset.station;
+      // Don't remove the link before its browser-managed navigation takes place.
+      if(channel==='spotify'){tune(channel,false);setTimeout(()=>{if(dialog==='radio')renderRadio();},0);}
+      else if(channel)tune(channel);
+    }
+    if(dialog==='map'&&phase==='play'){
+      const exit=sector?.gates.find(g=>g.id===e.target.closest('[data-exit]')?.dataset.exit);
+      if(exit){game.waypoint=exit;game.nav=null;notify(`GPS: ${exit.text}.`);closeDialog();}
+    }
     const button=e.target.closest('[data-job]');
     if(dialog==='jobs'&&button&&!button.disabled)startJob(button.dataset.job);
     const city=e.target.closest('[data-world]');
@@ -1356,9 +1474,12 @@
     if(dialog==='online'&&e.target.id==='room-form'){e.preventDefault();net.join($('room-input').value);}
     if(dialog==='pass'&&e.target.id==='pass-form'){
       e.preventDefault();
-      if(!progress.redeem(profile,$('pass-code').value)){set('pass-message','Ese código no abre el pase.');return;}
-      syncProfile();renderPass();updateUI();effect('win');set('pass-message','Código válido. Los 50 niveles y sus recompensas están desbloqueados.');
-      $('overlay-panel').scrollTop=0;$('overlay-panel').focus({preventScroll:true});
+      const result=progress.redeem(profile,$('pass-code').value);
+      if(!result){set('pass-message','Ese código no abre el pase ni activa las llaves infinitas.');return;}
+      syncProfile();renderPass();updateUI();effect('win');
+      const payout=[result.cash?`+${fmt(result.cash)} CR`:'',result.tools?`+${result.tools} ${result.tools===1?'llave':'llaves'}`:'',result.car?'Aurora 50':''].filter(Boolean);
+      set('pass-message',result.type==='tools'?'Llaves infinitas activadas. Pulsa Espacio para reparar sin gastar inventario.':payout.length?`Pase completado. Recompensas entregadas: ${payout.join(' · ')}.`:'El pase ya está completo. No quedan recompensas por entregar.');
+      $('pass-code').focus();
     }
     if(dialog==='save'&&phase==='title'&&!net.busy&&e.target.id==='save-form'){
       e.preventDefault();
@@ -1375,12 +1496,12 @@
     if(a==='reset')showTitle(true);
     if(a==='board')showBoard();
     if(a==='cities')showCities();
-    if(a==='respawn')chooseWorld(chapterIndex);
-    if(a==='shop'||a==='pass'||a==='save')openSide(a);
+    if(a==='respawn'){if(sector)enterFree(sector.x,sector.y);else chooseWorld(chapterIndex);}
+    if(sideDialogs.includes(a))openSide(a);
     if(a==='retry'&&game.failed)startJob(game.failed);
     if(a==='pause-help')showDialog('help');
     if(a==='abort')cancelJob('Misión abandonada');
-    if(a==='waypoint'){game.waypoint=!game.waypoint;notify(game.waypoint?'GPS: garaje marcado.':'GPS: destino eliminado.');closeDialog();}
+    if(a==='waypoint'||a==='clear-gps'){game.waypoint=a==='waypoint';game.nav=null;notify(game.waypoint?'GPS: garaje marcado.':'GPS: destino eliminado.');closeDialog();}
   });
   document.addEventListener('keydown',e=>{
     if(e.ctrlKey||e.altKey||e.metaKey)return;
@@ -1405,6 +1526,7 @@
     }
     if(e.target.closest('input,textarea'))return;
     if(e.code==='KeyV'&&!e.repeat){toggleSound();return;}
+    if(e.code==='KeyR'&&!e.repeat){if(dialog==='radio')closeSide();else if(!dialog)openSide('radio');return;}
     if(e.code==='KeyF'&&!e.repeat){e.preventDefault();toggleFullscreen();return;}
     if(e.code==='KeyM'&&!e.repeat){e.preventDefault();openMap();return;}
     if(e.code==='Enter'&&phase==='title'&&!dialog&&!e.target.closest('button,a')){e.preventDefault();start();return;}
@@ -1438,14 +1560,16 @@
     const p=player(),m=game.mission,goal=activeGoal(),route=phase==='title'?null:navRoute();
     return JSON.stringify({phase:dialog||phase,mode,time:round(game.time),coordinates:'World origin top-left; x east, y south',
       player:{x:round(p.x),y:round(p.y),angle:round(p.a),hp:round(p.hp),onFoot:!game.player.car,carId:game.player.car?.id,carType:game.player.car?.type,flying:!!p.air,speed:round(p.s||0)},
-      controls:'WASD/arrows drive, E interact, Space repair, Shift handbrake, H flight, J side job, F fullscreen, M map, Esc pause',
+      controls:'WASD/arrows drive, E interact, Space repair, Shift handbrake, H flight, J side job, R radio, F fullscreen, M map, Esc pause',
       alert:game.heat,cash:game.cash,crewJobs:game.rep,trust:game.trust,reward:game.gift,dockOpen:dockOpen(),
-      profile:{wrenches:profile.wrenches,xp:profile.xp,passUnlocked:profile.unlocked,passRank:progress.rank(profile),freeMissions:profile.freeDone,equipped:profile.equipped,owned:profile.owned},
+      profile:{wrenches:profile.wrenches,unlimitedWrenches:profile.unlimitedWrenches,xp:profile.xp,passUnlocked:profile.unlocked,passRank:progress.rank(profile),freeMissions:profile.freeDone,equipped:profile.equipped,owned:profile.owned},
+      radio:{station:station.id,muted,music:!!station.beat&&!muted,audio:audio?.state},
+      atlas:sector?{x:sector.x,y:sector.y,biome:sector.biome,seed:config.seed,gates:sector.gates.map(({id,x,y,nx,ny,target})=>({id,x,y,nx,ny,target})),jobSector:m?.job.sector??null}:null,
       goal:goal?{x:round(goal.x),y:round(goal.y),text:goal.text||goal.name}:null,
       mission:m?{id:m.id,name:m.job.name,stage:m.idx+1,stages:m.job.steps.length,kind:['van','choice','escort','action','stop'].find(k=>m.job.steps[m.idx][k])||'checkpoint',left:timeLimit(m)?round(timeLimit(m)-game.time):null,finalLeft:m.finishBy?round(m.finishBy-game.time):null,waitingForCar:m.pendingTimer,choose:!!m.job.steps[m.idx].choice,hold:round(m.hold),convoy:m.ally?{x:round(m.ally.car.x),y:round(m.ally.car.y)}:null}:null,
       campaign:{total:FINAL_COUNT,chapter:config.number,city:config.name,map:{width:W,height:H},completed:[...game.completed],remaining:JOBS.map(([id])=>id).filter(id=>!game.completed.has(id))},
       coop:net.connected?{role:net.hosting?'host':'guest',partner:game.buddy?{x:round((game.buddy.car||game.buddy).x),y:round((game.buddy.car||game.buddy).y),carId:game.buddy.car?.id??null}:null}:null,
-      gps:route?{dest:game.waypoint?'garage':'mission',meters:Math.round(route.length),points:route.points.map(q=>[round(q.x),round(q.y)])}:null,
+      gps:route?{dest:game.waypoint===true?'garage':game.waypoint?.id??(goal?.arrow?goal.id:'mission'),meters:Math.round(route.length),points:route.points.map(q=>[round(q.x),round(q.y)])}:null,
       finished:game.won,garage:GARAGE,phones:PHONE,
       nearbyCars:game.cars.filter(c=>c.kind!=='traffic'&&dist(c,p)<350).map(c=>({x:round(c.x),y:round(c.y),id:c.id,type:c.type})),
       police:game.police.map(c=>({x:round(c.x),y:round(c.y),role:c.role,speed:round(c.s||0)})),patrolMaxSpeed:COP_BASE+game.heat*COP_PER_STAR,

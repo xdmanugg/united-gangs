@@ -250,6 +250,16 @@
         }
       }
     }
+    if(m.exitBridge!=null&&shore<W){
+      const y=m.exitBridge;
+      box(c,shore-5,y-49,W-shore+5,98,'#292538');
+      surf(shore-5,y-44,W-shore+5,88);
+      for(const side of [-1,1]){
+        box(c,shore-5,y+side*45,W-shore+5,3,'#9ac5d6');
+        for(let x=shore;x<W;x+=24)box(c,x,y+side*45-2,4,7,'#d5ecf6');
+      }
+      for(let x=shore+5;x<W;x+=29)box(c,x,y,13,1.5,'#edc9a9ac');
+    }
     for(const x of X)for(let j=0;j<H;j+=29){
       if(Y.some(y=>Math.abs(y-j)<65))continue;
       box(c,x-2,j,1.3,13,'#ead0a78b');box(c,x+1,j,1.3,13,'#ead0a775');

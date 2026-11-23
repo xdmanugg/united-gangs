@@ -10,16 +10,18 @@
     titan:{name:'Titán de carga',type:'van',color:'#ffd387',price:4900,tag:'FURGONETA',desc:'Buena adherencia y carrocería ancha.'},
     aurora:{name:'Aurora 50',type:'sport',color:'#dc9ef8',price:null,tag:'PASE · NIVEL 50',desc:'Deportivo con pintura exclusiva del pase.'}
   };
-  const fresh=()=>({cash:0,wrenches:0,xp:0,unlocked:false,master:false,claimed:0,freeDone:0,owned:['stock'],equipped:'stock',
+  const fresh=()=>({cash:0,wrenches:0,unlimitedWrenches:false,xp:0,unlocked:false,master:false,claimed:0,freeDone:0,owned:['stock'],equipped:'stock',
     story:{completed:[],rep:{p:0,m:0},trust:{p:0,m:0},gift:null,won:false}});
   const rank=p=>p.unlocked?Math.min(RANKS,p.master?RANKS:Math.floor(p.xp/XP_PER_RANK)):0;
-  const rewardFor=n=>n===50?'Aurora 50':n%10===0?'+1 llave inglesa':'+300 CR';
+  const milestone=n=>n<5||n>RANKS||n%5!==0?null:n===50?{car:'aurora',label:'Aurora 50'}:n%10===0?{tools:1,label:'+1 llave inglesa'}:{cash:300,label:'+300 CR'};
+  const rewardFor=n=>milestone(n)?.label??'';
   function collect(p){
     const level=rank(p),old=p.claimed;
     for(let n=old+1;n<=level;n++){
-      if(n===50){if(!p.owned.includes('aurora'))p.owned.push('aurora');}
-      else if(n%10===0)p.wrenches++;
-      else if(n%5===0)p.cash+=300;
+      const reward=milestone(n);
+      if(!reward)continue;
+      if(reward.car&&!p.owned.includes(reward.car))p.owned.push(reward.car);
+      p.wrenches+=reward.tools??0;p.cash+=reward.cash??0;
     }
     p.claimed=Math.max(old,level);
     return level-old;
@@ -30,9 +32,19 @@
     return collect(p);
   }
   function redeem(p,code){
-    if(code.trim().toUpperCase()!=='SALADO')return false;
-    p.unlocked=p.master=true;collect(p);return true;
+    const key=code.trim().toUpperCase();
+    if(key==='AMARILLO'){
+      const already=p.unlimitedWrenches;
+      p.unlimitedWrenches=true;return {type:'tools',already};
+    }
+    if(key!=='SALADO')return null;
+    const cash=p.cash,tools=p.wrenches,car=p.owned.includes('aurora'),already=p.master;
+    p.unlocked=p.master=true;collect(p);
+    if(!p.owned.includes('aurora'))p.owned.push('aurora');
+    return {type:'pass',already,cash:p.cash-cash,tools:p.wrenches-tools,car:!car};
   }
+  const canRepair=p=>p.unlimitedWrenches||p.wrenches>0;
+  function useWrench(p){if(!canRepair(p))return false;if(!p.unlimitedWrenches)p.wrenches--;return true;}
   const storyXP=job=>job.tag==='Gran cierre'?2000:800+job.level*100;
   const pack=p=>'UG6.'+btoa(JSON.stringify(p));
   function unpack(code,ids){
@@ -42,6 +54,7 @@
       if(!d||typeof d!=='object'||!Array.isArray(d.owned)||!Array.isArray(d.story?.completed))return null;
       const int=(n,min,max)=>Number.isInteger(n)?Math.min(max,Math.max(min,n)):min;
       for(const k of ['cash','xp','wrenches','freeDone'])p[k]=int(d[k],0,1e9);
+      p.unlimitedWrenches=d.unlimitedWrenches===true;
       p.story.completed=[...new Set(d.story.completed.filter(id=>ids.has(id)))];
       if(p.story.completed.length<ids.size)p.story.completed=p.story.completed.filter(id=>id!=='union');
       p.story.won=p.story.completed.length===ids.size;
@@ -55,5 +68,5 @@
       return p;
     }catch{return null;}
   }
-  window.UnitedProgress={fresh,SHOP,RANKS,XP_PER_RANK,rank,collect,earn,redeem,rewardFor,storyXP,pack,unpack};
+  window.UnitedProgress={fresh,SHOP,RANKS,XP_PER_RANK,rank,collect,earn,redeem,rewardFor,storyXP,canRepair,useWrench,pack,unpack};
 })();

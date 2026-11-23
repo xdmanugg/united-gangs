@@ -68,3 +68,23 @@
 #cabinet.viewport-fill #fs-btn{pointer-events:auto}
 #cabinet.viewport-fill #fs-pause:not(:disabled){display:inline-flex}
 #cabinet.viewport-fill .arcade-bar{flex:none;padding-bottom:max(5px,env(safe-area-inset-bottom))}
+.arcade-bar #radio-btn{color:#ffd3ed}
+.radio-readout{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:12px;padding:12px 14px;border:1px solid #826e9a;border-radius:7px;background:#18182e}
+.radio-readout>div{display:grid;gap:3px}
+.radio-readout span,.radio-channel>span{color:#aeeadc;font:600 var(--xs)/1.2 var(--font-label);letter-spacing:.045em}
+.radio-readout strong{color:#f4bbdc;font:800 clamp(1.5rem,4vw,2.25rem)/.95 var(--font-display)}
+.radio-readout b{color:#fff2fc;font-weight:800}
+.radio-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.radio-channel{min-width:0;min-height:65px;display:grid;gap:3px;padding:8px 11px;text-align:left;text-decoration:none;border:1px solid #716182;border-radius:5px;background:#252039;color:#fff3fc}
+.radio-channel>span{color:var(--station)}
+.radio-channel strong{font:700 var(--sm)/1.12 var(--font-body)}
+.radio-channel small{font:500 var(--xs)/1.18 var(--font-body);color:#dfcfe6}
+.radio-channel:hover,.radio-channel[aria-pressed=true]{border-color:var(--station);background:color-mix(in srgb,var(--station) 16%,#221a33)}
+.overlay-panel .radio-note,.overlay-panel .atlas-note{margin:8px 0 0;font-size:var(--xs);color:#e0d5f0}
+.atlas-exits{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:8px}
+.atlas-exits button{display:grid;align-content:center;justify-content:start;text-align:left;padding:5px 8px;min-height:43px;gap:1px;line-height:1.15}
+.atlas-exits span{color:#dbd1ed;font-size:var(--xs)}
+.atlas-dialog .map-large{height:clamp(116px,33vw,205px)}
+.atlas-dialog .dialog-actions{margin-top:10px}
+.stage[data-phase=radio]{height:clamp(360px,54vw,660px)}
+@media(max-width:520px){.radio-channel{padding:6px 7px}.atlas-exits button{min-height:44px}.stage[data-phase=map]:has(.atlas-dialog){height:min(470px,85svh)}.stage[data-phase=radio]{height:min(575px,86svh)}}

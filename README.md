@@ -5,15 +5,19 @@ Juego de conducción 2D para navegador, con una campaña local y modo libre en s
 ## Cómo jugar
 
 - **Historia local:** elige Puerto Umbral, Costa Candela, Sierra Eléctrica o Ciudad Prisma. Las seis misiones de cada mapa se pueden jugar en cualquier orden. Después de completar las 24, se desbloquea **Bandas unidas**, la única misión de Miami. Cada tramo final tiene un límite de tiempo y en Miami también hay un límite total de 8 minutos.
-- **Modo libre:** explora cualquiera de las cuatro primeras ciudades. Pulsa J o **Encargo** para pedir una secundaria. Puedes repetir tantas como quieras; se generan rutas para entregas, carreras, persecuciones y recorridos.
-- **Cooperativo online:** uno pulsa **Crear sala** y comparte el código de ocho caracteres. El otro lo introduce en **Unirme**. El anfitrión elige el mapa y cualquiera puede pedir encargos. Los dos conducen su propio coche, comparten objetivos y cada uno gana recompensas para su inventario. La campaña nunca se juega online.
-- **Controles:** WASD o flechas para moverse, E para entrar, salir o usar el garaje, Espacio para gastar una llave inglesa y reparar el coche, Mayús para el freno de mano, H para despegar o aterrizar con el Halo X-9, M para el mapa, F para pantalla completa y Esc para el menú. En móvil hay controles táctiles. Las instrucciones aparecen como avisos de radio y los objetivos se activan al llegar.
+- **Modo libre:** recorre un mundo de sectores procedurales que mezcla puerto, costa, sierra, el centro de Prisma y un distrito Art Déco inspirado en Miami. Usa M para marcar una salida y cruza su flecha para llegar al siguiente sector sin pasar por el menú. Pulsa J o **Encargo** para pedir una secundaria. Si sales del sector de una misión, el GPS te indica cómo volver.
+- **Cooperativo online:** uno pulsa **Crear sala** y comparte el código de ocho caracteres. El otro lo introduce en **Unirme**. El anfitrión elige dónde empezar y cualquiera puede pedir encargos. Los dos conducen su propio coche y conservan su inventario. Para cruzar una salida, los dos jugadores deben estar cerca de ella. La campaña no se juega online.
+- **Controles:** WASD o flechas para moverse, E para interactuar, Espacio para reparar el coche, Mayús para el freno de mano, H para el Halo X-9, M para el mapa, R para la radio, V para silenciar, F para pantalla completa y Esc para el menú. En móvil hay controles táctiles. Los objetivos se activan al llegar.
+
+## Radio
+
+El dial tiene cuatro emisoras originales generadas con Web Audio: Neón FM, Muelle Bass, Costa Groove y Antena Lunar. **Solo efectos** deja activos el motor y los avisos. **Abrir playlist en Spotify** abre la playlist elegida en otra pestaña y desactiva solo la música del juego; Spotify no se reproduce dentro del juego.
 
 ## Progresión
 
 Cada misión completada da créditos, XP y una llave inglesa. Usa los créditos en la tienda y equipa un coche para tu próxima salida. El Halo X-9 puede sobrevolar edificios y canales, pero debes aterrizar para completar objetivos y no puedes bajar del coche en el aire.
 
-El pase tiene 50 niveles de 500 XP cada uno. La XP se acumula incluso con el pase bloqueado. Completar la historia lo desbloquea y existe una pista escondida en modo libre cuyo código desbloquea todos los niveles. Las recompensas de cinco en cinco se entregan automáticamente, con el deportivo Aurora 50 como premio final.
+El pase tiene 50 niveles de 500 XP cada uno. La XP se acumula incluso con el pase bloqueado. Completar la historia lo desbloquea. Las recompensas se entregan automáticamente de cinco en cinco y culminan con el Aurora 50. Como alternativa, canjea **SALADO** en el Pase de batalla para completar los 50 niveles y recibir todos los premios que aún no tengas. **AMARILLO** activa las reparaciones ilimitadas con Espacio, independientemente del pase. Ambos códigos funcionan en cualquier orden.
 
 El perfil se mantiene mientras la página esté abierta. Para continuar después de recargar, usa **Pase de batalla → Respaldo de partida** desde la portada y conserva el código de respaldo fuera del juego. Restaurarlo reemplaza el perfil de la sesión. No hay cuentas ni almacenamiento automático en un servidor.
 
