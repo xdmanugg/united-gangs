@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./base.css">
-  <link rel="stylesheet" href="./style.css?v=3">
-  <script src="./game.js?v=3" defer></script>
+  <link rel="stylesheet" href="./style.css?v=3.1">
+  <script src="./game.js?v=3.1" defer></script>
 </head>
 <body>
   <a class="skip" href="#stage">Saltar al juego</a>
@@ -92,17 +92,18 @@
         <div id="brief" class="guide-intro">
           <div class="small-tag"><i></i> CENTRAL DE RADIO</div>
           <h2 id="brief-title">Hazte un nombre</h2>
-          <p id="brief-text">Cinco misiones, dos bandas. Tú decides por dónde empezar.</p>
+          <p id="brief-text">Tres encargos de banda y dos independientes. Tú decides por dónde empezar.</p>
           <span id="mission-distance" class="distance" hidden></span>
         </div>
-        <div class="crews">
-          <div class="crew"><i class="crew-mark lime">P</i><div><strong>Los Pistones</strong><span id="p-rep">El Cruce</span></div><span id="p-count">0/2</span></div>
-          <div class="crew"><i class="crew-mark orange">M</i><div><strong>La Marea</strong><span id="m-rep">Viejo Muelle</span></div><span id="m-count">0/1</span></div>
+        <div class="crews" aria-label="Bandas del distrito">
+          <div class="crew"><i class="crew-mark lime">P</i><div><strong>Los Pistones</strong><span id="p-rep">El Cruce</span></div></div>
+          <div class="crew"><i class="crew-mark orange">M</i><div><strong>La Marea</strong><span id="m-rep">Viejo Muelle</span></div></div>
         </div>
         <div id="reward" class="reward" hidden><span>FAVOR DE BANDA</span><strong id="reward-name"></strong></div>
         <div class="guide-map">
           <div class="guide-map-head"><span><svg class="icon"><use href="#i-map"/></svg> PLANO DEL DISTRITO</span><button id="map-btn" type="button" aria-label="Abrir plano del distrito" title="Abrir plano (M)"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
-          <svg id="mini" viewBox="0 0 2120 1680" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa de Puerto Umbral"></svg>
+          <svg id="mini" viewBox="0 0 2120 1680" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa de Puerto Umbral" aria-describedby="mini-caption"></svg>
+          <div class="map-caption" id="mini-caption">P / M: teléfonos · G: garaje</div>
         </div>
       </aside>
     </div>

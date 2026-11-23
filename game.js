@@ -859,7 +859,6 @@
     const near=interactable();$('prompt').hidden=!near;
     if(near)set('prompt',`${touchMode()?'ACCIÓN':'E'} · ${near.name}`);
     $('broadcast').hidden=!game.msg||game.time>game.msgUntil;if(!$('broadcast').hidden)set('broadcast',game.msg);
-    set('p-count',`${game.rep.p}/2`);set('m-count',`${game.rep.m}/1`);
     set('campaign-count',`${game.missionDone}/${FINAL_COUNT} MISIONES`);
     for(const [side,hood] of [['p','El Cruce'],['m','Viejo Muelle']]){
       const trust=game.trust[side],tag=$(side+'-rep');
@@ -885,7 +884,7 @@
     }else{
       const title=phase==='title', remaining=FINAL_COUNT-game.missionDone;
       set('brief-title',title?'Hazte un nombre':game.won?'Ciudad libre':'Elige una misión');
-      set('brief-text',title?'Cinco misiones, dos bandas. Tú decides por dónde empezar.':game.won?'Has completado la campaña. La ciudad sigue abierta.':`Queda${remaining===1?'':'n'} ${remaining} ${remaining===1?'misión':'misiones'}. Puedes hacerlas en el orden que quieras.`);
+      set('brief-text',title?'Tres encargos de banda y dos independientes. Tú decides por dónde empezar.':game.won?'Has completado la campaña. La ciudad sigue abierta.':`Queda${remaining===1?'':'n'} ${remaining} ${remaining===1?'misión':'misiones'}. Puedes hacerlas en el orden que quieras.`);
     }
     if(game.waypoint){
       set('mission-distance',`GPS · Garaje · ${Math.round(route?.length??dist(p,GARAGE))} m`);
