@@ -88,3 +88,18 @@
 .atlas-dialog .dialog-actions{margin-top:10px}
 .stage[data-phase=radio]{height:clamp(360px,54vw,660px)}
 @media(max-width:520px){.radio-channel{padding:6px 7px}.atlas-exits button{min-height:44px}.stage[data-phase=map]:has(.atlas-dialog){height:min(470px,85svh)}.stage[data-phase=radio]{height:min(575px,86svh)}}
+.arcade-bar #journal-btn{color:#ffe0a5}
+#journal-badge{min-width:1.35rem;border-radius:12px;background:#ffe0a5;color:#34223c;text-align:center;font:700 var(--xs)/1.35 var(--font-label);padding-inline:3px}
+.stage[data-phase=journal]{height:clamp(385px,52vw,620px)}
+.journal-summary{border-color:#9c775e;background:linear-gradient(100deg,#3d2a40,#32273c)}
+.journal-summary span{color:#ffe0a5}
+.journal-empty{display:flex;align-items:flex-start;gap:12px;border:1px solid #76617a;border-radius:6px;background:#241d34;padding:14px;color:#fff0fc}
+.journal-empty .icon{color:#ffd995;flex:none;width:24px;height:24px}
+.overlay-panel .journal-empty p{margin:4px 0 0}
+.overlay-panel .journal-list{display:grid;gap:5px}
+.overlay-panel .journal-list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid #725875;border-radius:6px;background:#272039;max-width:none}
+.journal-list li>div{display:grid;gap:3px;min-width:0}
+.overlay-panel .journal-list strong{color:#ffe0a5;letter-spacing:.065em;font:700 var(--sm)/1.1 var(--font-label);overflow-wrap:anywhere}
+.journal-list small,.journal-status{font-size:var(--xs);color:#aef5df}
+.journal-list button{min-height:42px}
+@media(max-width:520px){.journal-list button{padding-inline:8px}.stage[data-phase=journal]{height:min(500px,84svh)}}
