@@ -86,3 +86,10 @@ meter{width:90px;height:12px;display:block;margin-top:var(--s2);appearance:none}
 @media(max-width:420px){.hud-bottom:has(#prompt:not([hidden])) #neighborhood{display:none}.hud-bottom:has(#prompt:not([hidden])) #prompt{margin-inline:0;text-align:left}}
 @media(max-width:760px){.reward{grid-column:1/-1;border-bottom:0;border-top:1px solid var(--line)}}
 @media(min-width:761px){.guidebox:has(.reward:not([hidden])) #mini{max-height:128px}}
+@media(max-width:420px){
+  .overlay-panel.map-dialog{padding:var(--s3)}
+  .map-dialog h2{font-size:clamp(1.55rem,7.1vw,2.05rem);margin:var(--s1) var(--s10) var(--s2) 0}
+  .map-dialog .map-large{height:clamp(116px,35vw,145px)}
+  .map-dialog .legend{gap:var(--s1) var(--s2);margin-bottom:var(--s2)}
+  .map-dialog .dialog-actions .primary{min-width:0}
+}
