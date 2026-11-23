@@ -3,16 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10120f">
-  <meta name="description" content="Distrito Cero, un arcade de conducción cenital en una ciudad de bandas rivales.">
-  <title>Distrito Cero · Arcade urbano</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23171a15' d='M0 0h32v32H0z'/%3E%3Cpath fill='%23d8fa55' d='M7 7h7v7H7zm11 0h7v7h-7zM7 18h7v7H7zm11 0h7v7h-7z'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#151226">
+  <meta name="description" content="United Gangs: cinco ciudades, 25 misiones y un final en Miami. Juego de conducción 2D.">
+  <title>United Gangs · Campaña nocturna</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23151226' width='32' height='32' rx='7'/%3E%3Cpath fill='%23ff9fc8' d='M7 7h7v7H7zm11 0h7v7h-7zM7 18h7v7H7zm11 0h7v7h-7z'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./base.css">
-  <link rel="stylesheet" href="./style.css?v=3.1">
-  <script src="./game.js?v=3.1" defer></script>
+  <link rel="stylesheet" href="./style.css?v=4">
+  <link rel="stylesheet" href="./night.css?v=4">
+  <script src="./campaign.js?v=4" defer></script>
+  <script src="./city.js?v=4" defer></script>
+  <script src="./game.js?v=4" defer></script>
 </head>
 <body>
   <a class="skip" href="#stage">Saltar al juego</a>
@@ -30,8 +33,8 @@
   </svg>
   <header class="mast">
     <div class="frame mast-inner">
-      <span class="wordmark"><svg class="icon"><use href="#i-grid"/></svg> DISTRITO<span>·</span>CERO</span>
-      <span class="header-label">ARCADE URBANO <b>/</b> VISTA CENITAL</span>
+      <span class="wordmark"><svg class="icon"><use href="#i-grid"/></svg> UNITED<span>GANGS</span></span>
+      <span class="header-label">CAMPAÑA NOCTURNA <b>/</b> CONDUCCIÓN 2D</span>
       <div class="utility">
         <button id="sound" class="utility-btn" type="button" aria-pressed="false" aria-label="Activar sonido" title="Activar sonido (V)"><svg class="icon"><use href="#i-mute"/></svg><span>SONIDO</span></button>
         <button id="pause" class="utility-btn" type="button" aria-label="Pausar o reanudar partida" title="Pausa (Esc)" disabled><svg class="icon"><use href="#i-pause"/></svg><span>PAUSA</span></button>
@@ -39,17 +42,17 @@
     </div>
   </header>
   <main class="frame">
-    <div class="topline"><span><i></i> PUERTO UMBRAL <b>//</b> 02:17 H</span><span class="edition">ARCHIVO DE CALLE <b>///</b> N.º 03</span></div>
+    <div class="topline"><span><i></i> <strong id="city-header">Puerto Umbral</strong> <b>//</b> <span id="city-stamp">PUERTO / 23:40</span></span><span class="edition">RUTA A MIAMI</span></div>
     <div class="workspace">
-      <section class="cabinet" aria-label="Distrito Cero, juego arcade">
+      <section class="cabinet" aria-label="United Gangs, juego de conducción">
         <div class="stage" id="stage" tabindex="-1" data-phase="title">
-          <canvas id="game" aria-label="Ciudad de Puerto Umbral, vista cenital"></canvas>
+          <canvas id="game" aria-label="Ciudad en vista cenital"></canvas>
           <div class="art" aria-hidden="true"></div>
           <div class="reticle top-left" aria-hidden="true"></div><div class="reticle top-right" aria-hidden="true"></div><div class="reticle bottom-right" aria-hidden="true"></div>
           <div id="title-screen" class="title-screen">
-            <span class="kicker">DOS BANDAS <b>/</b> UNA CIUDAD</span>
-            <h1>DISTRITO<span>CERO<span class="period">.</span></span></h1>
-            <p>Recorre el puerto, gana respeto y escapa de las patrullas.</p>
+            <span class="kicker">CAMPAÑA <b>/</b> 25 MISIONES</span>
+            <h1 lang="en">UNITED<span>GANGS</span></h1>
+            <p>Dos bandas, cinco ciudades y una última noche en Miami.</p>
             <div class="hero-actions">
               <button id="start-btn" class="primary" type="button"><svg class="icon"><use href="#i-play"/></svg> <span id="start-label">JUGAR</span></button>
               <button id="tutorial" class="quiet" type="button"><svg class="icon"><use href="#i-keys"/></svg> Cómo jugar</button>
@@ -84,15 +87,15 @@
           </div>
           <div class="touch-actions"><button id="touch-map" type="button" aria-label="Abrir el mapa"><svg class="icon"><use href="#i-map"/></svg></button><button type="button" data-key="Space">FRENO</button><button type="button" data-key="KeyE" class="touch-use">ACCIÓN</button></div>
         </div>
-        <div class="statusbar"><span><i></i> <span id="state-label">ESPERANDO JUGADOR</span></span><span id="debug" aria-hidden="true">2D / 60 FPS</span><span class="build">DC<span>_</span>03</span></div>
+        <div class="statusbar"><span><i></i> <span id="state-label">ESPERANDO JUGADOR</span></span><span id="debug" aria-hidden="true">2D / 60 FPS</span><span class="build">UG<span>_</span>04</span></div>
       </section>
 
       <aside class="guidebox" aria-label="Guía de calle">
-        <div class="guide-head"><span><svg class="icon"><use href="#i-target"/></svg> GUÍA DE CALLE</span><span id="campaign-count">0/5 MISIONES</span></div>
+        <div class="guide-head"><span><svg class="icon"><use href="#i-target"/></svg> CAMPAÑA</span><span id="campaign-count">0/25 MISIONES</span></div>
         <div id="brief" class="guide-intro">
           <div class="small-tag"><i></i> CENTRAL DE RADIO</div>
-          <h2 id="brief-title">Hazte un nombre</h2>
-          <p id="brief-text">Tres encargos de banda y dos independientes. Tú decides por dónde empezar.</p>
+          <h2 id="brief-title">El primer pacto</h2>
+          <p id="brief-text">Empieza en Puerto Umbral y elige tu primera misión.</p>
           <span id="mission-distance" class="distance" hidden></span>
         </div>
         <div class="crews" aria-label="Bandas del distrito">
@@ -101,12 +104,17 @@
         </div>
         <div id="reward" class="reward" hidden><span>FAVOR DE BANDA</span><strong id="reward-name"></strong></div>
         <div class="guide-map">
-          <div class="guide-map-head"><span><svg class="icon"><use href="#i-map"/></svg> PLANO DEL DISTRITO</span><button id="map-btn" type="button" aria-label="Abrir plano del distrito" title="Abrir plano (M)"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
-          <svg id="mini" viewBox="0 0 2120 1680" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa de Puerto Umbral" aria-describedby="mini-caption"></svg>
+          <div class="guide-map-head"><span><svg class="icon"><use href="#i-map"/></svg> PLANO DE LA CIUDAD</span><button id="map-btn" type="button" aria-label="Abrir el plano de la ciudad" title="Abrir plano (M)"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
+          <svg id="mini" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa de la ciudad actual" aria-describedby="mini-caption"></svg>
           <div class="map-caption" id="mini-caption">P / M: teléfonos · G: garaje</div>
         </div>
       </aside>
     </div>
+
+    <section class="campaign-track" aria-labelledby="campaign-title">
+      <div class="track-heading"><h2 id="campaign-title">Ruta a Miami</h2><span>Completa 5 misiones para avanzar</span></div>
+      <div class="track-scroll" tabindex="0"><ol id="chapter-list" aria-label="Capítulos de la campaña"></ol></div>
+    </section>
 
     <section class="fieldguide" aria-labelledby="field-title">
       <div class="field-label"><span>MANUAL RÁPIDO / 01</span><h2 id="field-title">Los controles</h2></div>
@@ -115,6 +123,6 @@
       <div class="control last"><strong>Freno de mano / mapa</strong><div><kbd>Espacio</kbd><kbd>M</kbd></div></div>
     </section>
   </main>
-  <footer class="frame footer"><span>DISTRITO CERO / PUERTO UMBRAL</span><span>JUEGO ORIGINAL · ARCADE DE NAVEGADOR</span></footer>
+  <footer class="frame footer"><span>UNITED GANGS / CAMPAÑA NOCTURNA</span><span>JUEGO ORIGINAL · CONDUCCIÓN 2D</span></footer>
 </body>
 </html>
