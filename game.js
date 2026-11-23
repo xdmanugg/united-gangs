@@ -3,6 +3,7 @@
   const $ = id => document.getElementById(id);
   const canvas = $('game'), ctx = canvas.getContext('2d', { alpha: false });
   const W = 2120, H = 1680, STEP = 1 / 60, TAU = Math.PI * 2;
+  const COP_BASE=102, COP_PER_STAR=20;
   const X = [145, 505, 865, 1225, 1585, 1945], Y = [155, 445, 735, 1025, 1315, 1550], RW = 102;
   const LIME = '#d8fa55', ORANGE = '#ff9f69', CYAN = '#8ee5de', RED = '#ff7b76';
   const PHONE = { p:{x:466,y:464,color:LIME,name:'Los Pistones'}, m:{x:1624,y:715,color:ORANGE,name:'La Marea'} };
@@ -27,33 +28,30 @@
   const mapPoint = (x,y) => ({x,y});
   const goto = (x,y,text,extra={}) => ({...mapPoint(x,y),text,...extra});
   const contracts = {
-    p:[
-      {name:'El primer encargo',pay:450,intro:'Pistones: «Hay un paquete en la plaza. Tráelo al taller».',steps:[
+    paquete:
+      {side:'p',name:'El primer encargo',tag:'Entrega',level:1,summary:'Recoge un paquete y déjalo en el taller.',pay:450,intro:'Pistones: «Hay un paquete en la plaza. Tráelo al taller».',steps:[
         goto(865,445,'Recoge el paquete en la plaza del mercado.'),
         goto(1225,735,'Entrega el paquete en el taller de Los Pistones.')]},
-      {name:'La vuelta rápida',pay:800,intro:'Pistones: «Consigue un coche. A ver si tienes manos».',time:54,car:true,steps:[
+    vuelta:
+      {side:'p',name:'La vuelta rápida',tag:'Contrarreloj',level:2,summary:'Cruza tres controles antes de que acabe el tiempo.',pay:800,intro:'Pistones: «Consigue un coche. A ver si tienes manos».',time:58,car:true,steps:[
         goto(505,155,'Pasa por el primer control, al norte, con un coche.'),
         goto(1225,155,'Cruza al segundo control por la avenida.',{alert:1}),
         goto(1225,735,'Completa la vuelta en el taller.')]},
-    ],
-    m:[
-      {name:'Turno de noche',pay:550,intro:'Marea: «Recoge la caja del muelle. Es una entrega urgente».',steps:[
+    turno:
+      {side:'m',name:'Turno de noche',tag:'Puerto',level:2,summary:'Recoge la caja del muelle y esquiva a las patrullas.',spawn:[1585,761,1619,768],pay:550,intro:'Marea: «Recoge la caja del muelle. Es una entrega urgente».',steps:[
         goto(1945,1025,'Recoge la caja al final del paseo del muelle.',{alert:2,time:48}),
         goto(1585,1315,'Lleva la caja al almacén de La Marea.')]},
-      {name:'Carga caliente',pay:950,intro:'Marea: «Saca la furgoneta del depósito y llévala al garaje».',steps:[
-        goto(1945,1315,'Sube a la furgoneta marcada en el depósito.',{van:true,alert:2,time:55}),
-        goto(825,1002,'Lleva esa furgoneta al garaje bajo el paso elevado.')]},
-    ],
-    x:[{name:'La furgoneta disputada',pay:1050,intro:'Radio: «Las dos bandas quieren la misma furgoneta. Tú decides a quién se la entregas».',steps:[
+    disputa:{side:'x',name:'La furgoneta disputada',tag:'Decisión',level:2,summary:'Entrega la furgoneta a la banda que elijas.',spawn:[865,463,905,469],pay:1050,intro:'Radio: «Las dos bandas quieren la misma furgoneta. Tú decides a quién se la entregas».',steps:[
       goto(1225,445,'Recoge la furgoneta turquesa en el mercado.',{van:true,alert:2}),
       goto(1225,445,'Entrega la furgoneta en P o M: detente y pulsa Acción.',{choice:true})
-    ]}],
-    f:[{name:'La última salida',pay:1750,intro:'Radio: «¡Todas las patrullas en marcha! Te esperan al otro lado del puerto».',time:65,car:true,alert:3,steps:[
+    ]},
+    fuga:{side:'f',name:'Fuga del puerto',tag:'Persecución',level:3,summary:'Activa tres estrellas y escapa por la salida del puerto.',spawn:[507,486,526,477,Math.PI/2],pay:1750,intro:'Radio: «El distrito está vigilado. La persecución empieza cuando te subas al coche».',time:75,car:true,alert:3,steps:[
       goto(505,1025,'Sal del barrio por el cruce del sur.'),
       goto(1585,1550,'Cruza el cinturón industrial hacia el este.'),
-      goto(1945,1550,'Alcanza la salida del puerto con el coche.')]}],
+      goto(1945,1550,'Alcanza la salida del puerto con el coche.')]},
   };
-  const FINAL_COUNT=contracts.p.length+contracts.m.length+contracts.x.length+contracts.f.length;
+  const JOB_SPAWN=[507,486,546,477];
+  const JOBS=Object.entries(contracts), FINAL_COUNT=JOBS.length;
 
   // Paint the city once at full world resolution; only dynamic sprites move each frame.
   const terrain = document.createElement('canvas');
@@ -61,11 +59,19 @@
   const world=terrain.getContext('2d',{alpha:false}), solids=[], blocks=[];
   const r=rnd(882207);
   function rect(o,x,y,w,h,fill){o.fillStyle=fill;o.fillRect(x,y,w,h);}
+  function glow(o,x,y,radius,rgb,opacity){
+    const g=o.createRadialGradient(x,y,0,x,y,radius);
+    g.addColorStop(0,`rgba(${rgb},${opacity})`);g.addColorStop(.4,`rgba(${rgb},${opacity*.56})`);g.addColorStop(1,`rgba(${rgb},0)`);
+    rect(o,x-radius,y-radius,radius*2,radius*2,g);
+  }
   function roof(x,y,w,h,pal,id){
     if(w<34||h<14)return;
     solids.push({x,y,w,h});
     rect(world,x+7,y+10,w+4,h+4,'#1217149c');
     rect(world,x,y,w,h,pal[0]); rect(world,x+3,y+3,w-8,h-8,pal[1]);
+    const wash=world.createLinearGradient(x,y,x+w*.48,y+h);
+    wash.addColorStop(0,'#e5d6b926');wash.addColorStop(.58,'#8a9e9205');wash.addColorStop(1,'#121e234d');
+    rect(world,x+4,y+4,w-9,h-9,wash);
     rect(world,x+3,y+3,w-9,3,pal[2]);rect(world,x+4,y+h-6,w-7,3,'#15191670');
     if(h<28){rect(world,x+3,y+h/2,w-9,1,'#181d18a0');}
     else if(id%3===0){
@@ -93,8 +99,14 @@
     rect(world,0,0,W,H,'#4e5145');
     const palettes=[['#373e39','#60675a','#8a8d77'],['#49423a','#706457','#9f8c70'],['#343c39','#58615b','#888c79'],['#514b3a','#7a705b','#a0987c'],['#46423e','#69615d','#8a7b72']];
     const lastX=2005;
-    rect(world,lastX,0,W-lastX,H,'#253e3a');
+    const harbor=world.createLinearGradient(lastX,0,W,0);
+    harbor.addColorStop(0,'#345850');harbor.addColorStop(1,'#152e35');
+    rect(world,lastX,0,W-lastX,H,harbor);
     for(let j=0;j<440;j++){const xx=lastX+9+r()*130,yy=r()*H;rect(world,xx,yy,4+r()*25,1,r()<.5?'#4c706052':'#132c2a73');}
+    for(const y of [388,928,1243]){
+      glow(world,2051,y+14,64,'90,198,174',.26);
+      for(let i=0;i<13;i++)rect(world,2011+(i*31)%86,y+(i*9)%64,8+i%7,1,'#91d5bc4f');
+    }
     for(const y of [370,910,1225]){
       rect(world,1999,y,86,33,'#625c4b');for(let i=0;i<86;i+=6)rect(world,1999+i,y+1,1,31,'#302f25');
       rect(world,1999,y,86,2,'#9d9778');rect(world,2054,y+4,19,25,'#4f5b51');
@@ -145,8 +157,18 @@
       }else roof(x+10,y+12,w-20,h-24,palettes[id%5],id);
       for(let j=0;j<Math.floor(w*h/1050);j++){const xx=x+3+r()*(w-6),yy=y+3+r()*(h-6);rect(world,xx,yy,1+r()*3,1,'#c2c2a021');}
     }
-    for(const x of X)rect(world,x-47,0,94,H,'#333b38');
-    for(const y of Y)rect(world,0,y-47,2003,94,'#333b38');
+    for(const x of X)rect(world,x-47,0,94,H,'#303b3d');
+    for(const y of Y)rect(world,0,y-47,2003,94,'#303b3d');
+    // Thin, static reflections sit below lane markings, never across the GPS.
+    const lightRand=rnd(512934);
+    for(const y of Y)for(const x of X){
+      const warm=(x+y)%3!==0,rgb=warm?'255,186,106':'108,216,208';
+      glow(world,x+34,y-35,81,rgb,.33);glow(world,x-37,y+31,59,warm?'130,206,190':'255,175,105',.21);
+      for(let j=0;j<24;j++){
+        const tx=x+10+lightRand()*82,ty=y-37+lightRand()*28;
+        rect(world,tx,ty,3+lightRand()*23,j%4===0?2:1,`rgba(${rgb},${.035+lightRand()*.20})`);
+      }
+    }
     rect(world,ALLEY.x-22,190,44,17,'#5a594d');rect(world,ALLEY.x-22,394,44,17,'#5a594d');
     for(const gx of [1629,1894])rect(world,gx-4,DOCK.y-25,12,50,'#353d36');
     for(const y of [1315,1550]){
@@ -165,7 +187,7 @@
         rect(world,x-61,y+j,13,5,'#bab99a65');rect(world,x+48,y+j,13,5,'#bab99a65');
       }
       for(const [dx,dy] of [[-51,-51],[51,51],[-51,51],[51,-51]]){
-        rect(world,x+dx,y+dy,4,4,'#131c17');rect(world,x+dx-1,y+dy-1,3,3,(dx===dy)?'#cfaf64':'#9cb775');
+        rect(world,x+dx-1,y+dy-1,6,6,'#131c17');rect(world,x+dx,y+dy,3,3,(dx===dy)?'#f0c982':'#a1e6cc');
       }
     }
     for(let j=0;j<9900;j++){const x=r()*2003,y=r()*H;if(X.some(a=>Math.abs(a-x)<46)||Y.some(a=>Math.abs(a-y)<46))rect(world,x,y,1+r()*3,1,r()<.5?'#121c1732':'#bdbea420');}
@@ -201,7 +223,7 @@
     const people=Array.from({length:26},(_,i)=>({x:X[i%6]+(i%2?55:-55),y:75+roll()*1490,origin:0,a:i%2?Math.PI/2:-Math.PI/2,color:['#dfa975','#91a68a','#c8b7a4','#91aeb6','#af8280'][i%5],pace:18+roll()*12,range:33+roll()*67}));
     for(const p of people)p.origin=p.y;
     return {player:{x:507,y:486,a:-Math.PI/2,hp:100,car:null},cars,people,police:[],particles:[],marks:[],time:0,cash:0,heat:0,quiet:0,spawn:0,block:null,blockAt:0,
-      rep:{p:0,m:0},trust:{p:0,m:0},gift:null,finale:false,waypoint:false,mission:null,missionDone:0,won:false,msg:'',msgUntil:0,hitAt:-2,shake:0,lastSkid:0,safeUntil:0,nav:null,seed:roll};
+      rep:{p:0,m:0},trust:{p:0,m:0},gift:null,waypoint:false,mission:null,completed:new Set(),missionDone:0,lastReport:null,failed:null,won:false,msg:'',msgUntil:0,hitAt:-2,shake:0,lastSkid:0,safeUntil:0,nav:null,seed:roll};
   }
   game=fresh();
   function player(){return game.player.car || game.player}
@@ -311,8 +333,6 @@
     if(o.hp<=0)finish(false,game.player.car?'El coche ha quedado fuera de servicio.':'Te han atrapado en el distrito.');
   }
   function dockOpen(){return game?.gift==='m';}
-  function disputeAvailable(){return game.rep.p>=1&&game.rep.m>=1&&!game.gift;}
-  function finalAvailable(){return game.rep.p===2&&game.rep.m===2&&!!game.gift;}
   function nearestPhone(p=player()){return dist(p,PHONE.p)<=dist(p,PHONE.m)?PHONE.p:PHONE.m;}
   function activeGoal(){
     const m=game.mission;
@@ -322,39 +342,39 @@
       if(goal.van&&m.van)return {...goal,x:m.van.x,y:m.van.y};
       return goal;
     }
-    if(game.won)return null;
-    if(finalAvailable())return PHONE.p;
-    if(disputeAvailable())return nearestPhone();
-    if(game.rep.p===2)return PHONE.m;
-    if(game.rep.m===2)return PHONE.p;
-    return nearestPhone();
+    return null;
   }
   function guideGoal(){return game.waypoint?GARAGE_GOAL:activeGoal();}
   function guideColor(goal=guideGoal()){return goal===GARAGE_GOAL?CYAN:goal===PHONE.m||game.mission?.side==='m'?ORANGE:game.mission?.side==='x'&&goal!==PHONE.p?CYAN:LIME;}
-  function startJob(side){
-    if(game.mission){notify('Termina el encargo actual antes de aceptar otro.');return;}
-    if(game.won){notify('Radio en silencio. Puedes seguir explorando.');return;}
-    let caller=side;
-    if(disputeAvailable())side='x';
-    else if(finalAvailable()){if(side!=='p'){notify('La llamada final te espera en El Cruce.');return;}side='f';}
-    if((side==='p'||side==='m')&&game.rep[side]===2){notify('Ya has terminado los encargos de esta banda.');return;}
-    const job=contracts[side][side==='f'||side==='x'?0:game.rep[side]];
-    const m={side,job,idx:0,deadline:job.time?game.time+job.time:0,van:null};
-    game.mission=m;
-    game.waypoint=false;
+  function clearPursuit(){
+    game.heat=0;game.police=[];game.block=null;game.blockAt=game.spawn=game.quiet=0;
+  }
+  function startJob(id){
+    if(!Object.hasOwn(contracts,id)||game.completed.has(id)||game.won)return;
+    const job=contracts[id],side=job.side,[x,y,cx,cy,a=0]=job.spawn||JOB_SPAWN;
+    if(game.player.car)game.player.car.s=game.player.car.vx=game.player.car.vy=0;
+    game.cars=game.cars.filter(c=>!c.job);
+    const starter=game.cars.find(c=>c.starter);
+    Object.assign(starter,{x:cx,y:cy,a,s:0,vx:0,vy:0,hp:100});
+    game.player={x,y,a:-Math.PI/2,hp:100,car:null};
+    clearPursuit();
+    game.waypoint=false;game.nav=null;game.shake=0;game.particles.length=0;
+    game.safeUntil=game.time+.5;
+    const m={id,side,job,idx:0,deadline:0,pendingTimer:!!job.time,van:null};
+    game.mission=m;game.failed=null;game.lastReport=null;
     if(job.steps[0].van){
-      m.van=side==='x'?makeCar(1225,445,0,CYAN,{van:true,job:true,id:'disputa'}):makeCar(1945,1315,-Math.PI/2,ORANGE,{van:true,job:true,id:'van'});
+      m.van=makeCar(1225,445,0,CYAN,{van:true,job:true,id:'disputa'});
       game.cars.push(m.van);
     }
-    if(job.alert)raise(job.alert);
-    const greeting=(side==='p'||side==='m')&&game.trust[caller]<0?`Radio: «Aún tenemos cuentas pendientes. ${job.name}, y luego hablamos».`:job.intro;
-    notify(greeting,6);effect('job');updateUI();
+    const greeting=(side==='p'||side==='m')&&game.trust[side]<0?`Radio: «Aún tenemos cuentas pendientes. ${job.name}, y luego hablamos».`:job.intro;
+    notify(greeting,6);readyAudio();effect('job');
+    phase='play';closeDialog(false);$('stage').focus({preventScroll:true});
   }
   function cancelJob(reason){
     if(!game.mission)return;
-    const van=game.mission.van;
-    if(van){if(game.player.car===van){van.job=false;van.id='antigua-'+Math.round(game.time*10);}else game.cars=game.cars.filter(c=>c!==van);}
-    game.mission=null;notify(reason,5);effect('loss');updateUI();
+    game.failed=game.mission.id;
+    game.lastReport={title:reason,detail:'Tu progreso se conserva. Puedes repetir la misión o elegir otra.',style:'retry'};
+    game.mission=null;game.waypoint=false;clearPursuit();effect('loss');showBoard();
   }
   function handoff(side){
     const m=game.mission;
@@ -367,38 +387,39 @@
     if(side==='p'){
       game.cars.push(makeCar(546,412,0,LIME,{type:'sport',id:'regalo-p',reward:true,claimed:true}));
     }
-    m.van.hp=100;game.heat=0;game.police=[];game.block=null;game.safeUntil=game.time+1.5;
+    m.van.hp=100;
     endJob();
     return true;
   }
   function endJob(){
-    const m=game.mission;game.cash+=m.job.pay;game.missionDone++;
-    if(m.van)m.van.job=false;game.mission=null;
+    const m=game.mission;game.cash+=m.job.pay;game.completed.add(m.id);game.missionDone=game.completed.size;
+    if(m.van)m.van.job=false;game.mission=null;game.waypoint=false;clearPursuit();
     const p=player();sparks(p.x,p.y,LIME,26);
-    if(m.side==='f'){game.won=true;game.heat=0;game.police=[];game.block=null;finish(true);return;}
     if(m.side==='p'||m.side==='m'){
       game.rep[m.side]++;
       game.trust[m.side]=clamp(game.trust[m.side]+(game.trust[m.side]<0?2:1),-2,4);
     }
-    effect('win');
-    if(m.side==='x'){
-      notify(game.gift==='p'?'Los Pistones te dejan un deportivo junto a su teléfono.':'La Marea ha abierto el paso privado de los muelles.',7);
-    }else{
-      notify(finalAvailable()?'Encargo completo. Contesta el teléfono de El Cruce para el final.':disputeAvailable()?'Hay una llamada urgente. Contesta cualquiera de los dos teléfonos.':`Encargo completo · +${m.job.pay} CR`,5);
-    }
-    updateUI();
+    const reward=m.side==='x'?(game.gift==='p'?' · Deportivo en El Cruce':' · Atajo de los muelles abierto'):'';
+    game.lastReport={title:'Misión completada',detail:`${m.job.name} · +${fmt(m.job.pay)} CR${reward}`,style:'success'};
+    if(game.missionDone===FINAL_COUNT){game.won=true;finish(true);return;}
+    effect('win');showBoard();
   }
   function stepJob(){
     const m=game.mission;if(!m)return;
-    if(m.deadline&&game.time>m.deadline){cancelJob('Se acabó el tiempo. Vuelve al teléfono para repetir.');return;}
+    if(m.deadline&&game.time>m.deadline){cancelJob('Se acabó el tiempo');return;}
     const goal=m.job.steps[m.idx], car=game.player.car;
+    if(m.pendingTimer&&car){
+      m.pendingTimer=false;m.deadline=game.time+m.job.time;
+      if(m.job.alert)raise(m.job.alert);
+      notify(`Cuenta atrás: ${m.job.time} s. ${goal.text}`,4);updateUI();
+    }
     if(goal.choice)return;
     if((m.job.car&&!car)||(goal.van&&car!==m.van)||(m.van&&m.idx>0&&car!==m.van))return;
     if(!goal.van&&dist(player(),goal)>39)return;
     if(goal.alert)raise(goal.alert);
     if(goal.time)m.deadline=game.time+goal.time;
     m.idx++;effect('pass');
-    if(m.idx>=m.job.steps.length){if(m.van){m.van.hp=100;game.heat=0;game.police=[];game.block=null;}endJob();return;}
+    if(m.idx>=m.job.steps.length){endJob();return;}
     const next=m.job.steps[m.idx];
     notify(next.choice?'Elige P por el deportivo o M por el atajo.':next.text);updateUI();
   }
@@ -427,7 +448,9 @@
       const o=player();if(o.s!==undefined&&Math.abs(o.s)>38){notify('Frena para usar el garaje.');return;}
       o.hp=100;p.hp=100;game.heat=0;game.police=[];game.block=null;game.waypoint=false;game.safeUntil=game.time+2;
       effect('job');notify('Garaje: reparación completa y alerta a cero.');
-    }else if(target.type==='phone'){if(!handoff(target.side))startJob(target.side);}
+    }else if(target.type==='phone'){
+      if(!handoff(target.side))notify(game.won?'Radio en silencio. El distrito sigue abierto.':`Radio: sigue el objetivo de ${game.mission?.job.name||'tu misión'} marcado en el mapa.`);
+    }
     else if(target.type==='exit'){
       const c=p.car;
       if(Math.abs(c.s)>72){notify('Frena antes de bajar.');return;}
@@ -647,11 +670,13 @@
         }
       }
       const aim=cop.aim;
+      cop.s=0;
       if(dist(cop,aim)>4){
         const angle=Math.atan2(aim.y-cop.y,aim.x-cop.x);
         const change=angleDiff(cop.a,angle);
         cop.a+=clamp(change,-3.65*dt,3.65*dt);
-        const v=(154+game.heat*24)*(Math.abs(change)>1?.36:1);
+        const v=(COP_BASE+game.heat*COP_PER_STAR)*(Math.abs(change)>1?.36:1);
+        cop.s=v;
         if(move(cop,Math.cos(cop.a)*v*dt,Math.sin(cop.a)*v*dt,15))cop.rethink=0;
       }
       if(gap<(game.player.car?29:21)){
@@ -693,9 +718,19 @@
     ctx.lineWidth=2;ctx.strokeStyle=color;ctx.beginPath();ctx.arc(x,y,14+w,0,TAU);ctx.stroke();
     ctx.font='700 14px monospace';ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,x,y+1);
   }
+  function lightSprite(rgb,strength){
+    const sprite=document.createElement('canvas');sprite.width=sprite.height=64;
+    glow(sprite.getContext('2d'),32,32,31,rgb,strength);
+    return sprite;
+  }
+  const headlights=lightSprite('255,232,158',.39),taillights=lightSprite('255,97,88',.46),blueLights=lightSprite('96,168,255',.4);
   function drawCar(c){
     const isPolice=c.kind==='police',isPlayer=c===game.player.car,len=c.van?46:c.type==='sport'?42:c.type==='compact'?34:38,wide=c.van?24:21;
     ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.a);
+    if(isPolice||isPlayer||c.kind==='traffic'){
+      ctx.drawImage(headlights,len/2-5,-22,isPlayer?67:51,44);
+      ctx.drawImage(taillights,-len/2-18,-14,24,28);
+    }
     rect(ctx,-len/2+4,-wide/2+4,len,wide,'#111811ab');
     for(const x of [-len/2+5,len/2-12])for(const y of [-wide/2-2,wide/2-3])rect(ctx,x,y,7,5,'#191d19');
     path(ctx,[[-len/2+2,-wide/2],[len/2-4,-wide/2],[len/2,-wide/2+4],[len/2,wide/2-4],[len/2-5,wide/2],[-len/2+2,wide/2],[-len/2,-wide/2+3]],c.color);
@@ -710,9 +745,10 @@
       rect(ctx,7,-wide/2+4,2,wide-8,'#92a9a188');
     }
     if(isPolice){
+      const flash=reduced.matches||Math.floor(game.time*5)%2===0;
+      ctx.drawImage(flash?taillights:blueLights,-25,flash?-27:-14,46,43);
       rect(ctx,-len/2+1,-wide/2+4,8,wide-8,'#304652');
       if(c.role==='interceptor')rect(ctx,-len/2+2,-wide/2+4,4,wide-8,'#dbb568');
-      const flash=reduced.matches||Math.floor(game.time*5)%2===0;
       rect(ctx,-4,-7,4,6,flash?'#ff7274':'#8e4a51');rect(ctx,-4,1,4,6,flash?'#566d99':'#88c6ff');
       rect(ctx,-3,flash?-9:1,16,8,flash?'#ff6e761c':'#82b6ff21');
     }
@@ -823,7 +859,8 @@
     const near=interactable();$('prompt').hidden=!near;
     if(near)set('prompt',`${touchMode()?'ACCIÓN':'E'} · ${near.name}`);
     $('broadcast').hidden=!game.msg||game.time>game.msgUntil;if(!$('broadcast').hidden)set('broadcast',game.msg);
-    set('p-count',`${game.rep.p}/2`);set('m-count',`${game.rep.m}/2`);
+    set('p-count',`${game.rep.p}/2`);set('m-count',`${game.rep.m}/1`);
+    set('campaign-count',`${game.missionDone}/${FINAL_COUNT} MISIONES`);
     for(const [side,hood] of [['p','El Cruce'],['m','Viejo Muelle']]){
       const trust=game.trust[side],tag=$(side+'-rep');
       tag.dataset.rapport=trust<0?'hostile':trust>=2?'ally':'neutral';
@@ -832,7 +869,7 @@
     $('reward').hidden=!game.gift;
     if(game.gift)set('reward-name',game.gift==='p'?'Deportivo en El Cruce':'Paso privado de los muelles');
     $('mission-distance').hidden=!goal||phase==='title';
-    $('mobile-goal').hidden=(!m&&!finalAvailable()&&!disputeAvailable()&&!game.waypoint)||phase!=='play'||game.won&&!game.waypoint;
+    $('mobile-goal').hidden=(!m&&!game.waypoint)||phase!=='play';
     const route=phase==='title'?null:navRoute();
     const meters=goal?Math.round(!game.waypoint&&route?route.length:dist(p,goal)):0;
     if(m){
@@ -840,18 +877,15 @@
       set('brief-title',m.job.name);
       const choice=m.job.steps[m.idx].choice;
       const action=touchMode()?'ACCIÓN':'E';
-      const objective=choice?`P ofrece un deportivo; M, un atajo. Detente en su teléfono con la furgoneta y pulsa ${action}.`:m.job.steps[m.idx].text;
-      set('brief-text',(m.job.car&&!c?'Necesitas un coche. ':'')+objective);
+      const objective=choice?`P ofrece un deportivo; M, un atajo. Detente en su teléfono con la furgoneta y pulsa ${action}.`:m.pendingTimer?'Sube a un coche para iniciar el cronómetro.':m.job.steps[m.idx].text;
+      set('brief-text',(!m.pendingTimer&&m.job.car&&!c?'Necesitas un coche. ':'')+objective);
       set('mission-distance',`${m.idx+1}/${m.job.steps.length} · ${choice?'P o M':meters+' m'}${m.deadline?' · '+seconds+' s':''}`);
-      set('mobile-goal-progress',m.deadline?`${seconds} s`:`${m.idx+1}/${m.job.steps.length}`);
-      set('mobile-goal-text',choice?`P: deportivo · M: atajo. Detente y pulsa ${action}.`:(m.job.car&&!c?'Busca un coche. ': '')+objective);
+      set('mobile-goal-progress',m.pendingTimer?'SALIDA':m.deadline?`${seconds} s`:`${m.idx+1}/${m.job.steps.length}`);
+      set('mobile-goal-text',choice?`P: deportivo · M: atajo. Detente y pulsa ${action}.`:(!m.pendingTimer&&m.job.car&&!c?'Busca un coche. ': '')+objective);
     }else{
-      const all=finalAvailable(),pending=disputeAvailable(),title=phase==='title';
-      set('brief-title',title?'Hazte un nombre':game.won?'Ciudad libre':all?'Una última llamada':pending?'Llamada urgente':'Busca un teléfono');
-      set('brief-text',title?'Acepta encargos, elige bando y no pierdas de vista a las patrullas.':game.won?'Has completado la historia. La ciudad sigue abierta.':all?'Vuelve al teléfono de Los Pistones en El Cruce.':pending?'Contesta cualquiera de los dos teléfonos. Hay una furgoneta en disputa.':'Acércate a un teléfono marcado en el mapa y acepta un encargo.');
-      if(goal)set('mission-distance',`${goal.name??'EL CRUCE'} · ${meters} m`);
-      if(all){set('mobile-goal-progress','FINAL');set('mobile-goal-text','Vuelve al teléfono P en El Cruce.');}
-      if(pending){set('mobile-goal-progress','RADIO');set('mobile-goal-text','Contesta cualquiera de los dos teléfonos.');}
+      const title=phase==='title', remaining=FINAL_COUNT-game.missionDone;
+      set('brief-title',title?'Hazte un nombre':game.won?'Ciudad libre':'Elige una misión');
+      set('brief-text',title?'Cinco misiones, dos bandas. Tú decides por dónde empezar.':game.won?'Has completado la campaña. La ciudad sigue abierta.':`Queda${remaining===1?'':'n'} ${remaining} ${remaining===1?'misión':'misiones'}. Puedes hacerlas en el orden que quieras.`);
     }
     if(game.waypoint){
       set('mission-distance',`GPS · Garaje · ${Math.round(route?.length??dist(p,GARAGE))} m`);
@@ -862,30 +896,46 @@
   const touchMode=()=>matchMedia('(pointer:coarse), (max-width:760px)').matches;
   function refreshShell(){
     $('stage').dataset.phase=phase==='title'?'title':dialog||phase;
-    $('title-screen').hidden=phase!=='title';$('hud').hidden=phase==='title';
+    $('title-screen').hidden=phase!=='title';$('hud').hidden=phase==='title'||phase==='board';
     $('touch').hidden=phase!=='play'||!!dialog;
-    $('pause').disabled=phase==='title'||phase==='end'||phase==='win';
+    $('pause').disabled=phase!=='play';
+    $('map-btn').disabled=phase!=='title'&&phase!=='play';
     $('pause').setAttribute('aria-pressed',String(dialog==='pause'));
-    set('state-label',dialog==='pause'?'PARTIDA EN PAUSA':dialog==='map'?'PLANO DEL DISTRITO':phase==='title'?'ESPERANDO JUGADOR':phase==='end'?'FUERA DE SERVICIO':phase==='win'?'DISTRITO COMPLETADO':'EN DIRECTO');
+    set('state-label',dialog==='pause'?'PARTIDA EN PAUSA':dialog==='map'?'PLANO DEL DISTRITO':phase==='title'?'ESPERANDO JUGADOR':phase==='board'?'CENTRAL DE ENCARGOS':phase==='end'?'FUERA DE SERVICIO':phase==='win'?'DISTRITO COMPLETADO':'EN DIRECTO');
+    set('start-label',game.missionDone?'CONTINUAR':'JUGAR');
     updateUI();paintDirty=true;render();
   }
   function clearInput(){keys.clear();touches.clear();document.querySelectorAll('.held').forEach(b=>b.classList.remove('held'));}
   function start(){
-    clearInput();readyAudio();effect('job');game=fresh();phase='play';closeDialog(false);
-    notify('Teléfono P: acércate y pulsa '+(touchMode()?'ACCIÓN.':'E.'),5);
-    refreshShell();$('stage').focus({preventScroll:true});
+    clearInput();readyAudio();effect('job');
+    if(game.won){phase='win';showDialog('win');}else showBoard();
+  }
+  function showBoard(){
+    phase='board';game.msg='';game.waypoint=false;game.nav=null;showDialog('jobs');
   }
   function showDialog(kind){
     if(!dialog)lastFocus=document.activeElement;
     clearInput();dialog=kind;
     const panel=$('overlay-panel'), body=$('dialog-content'),actions=$('dialog-actions');
     panel.classList.toggle('map-dialog',kind==='map');
-    $('close-overlay').hidden=kind==='end'||kind==='win';
-    const labels={help:['MANUAL DE CALLE','Cómo jugar'],map:['NAVEGACIÓN / UMBRAL','Plano del distrito'],pause:['TRANSMISIÓN EN PAUSA','Partida en pausa'],end:['FIN DE LA PARTIDA','Fuera de servicio'],win:['HISTORIA COMPLETA','El puerto es tuyo']};
+    panel.classList.toggle('board-dialog',kind==='jobs');
+    $('close-overlay').hidden=kind==='end'||kind==='win'||kind==='jobs';
+    const labels={jobs:['CENTRAL DE ENCARGOS','Elige una misión'],help:['MANUAL DE CALLE','Cómo jugar'],map:['NAVEGACIÓN / UMBRAL','Plano del distrito'],pause:['TRANSMISIÓN EN PAUSA','Partida en pausa'],end:['TRANSMISIÓN INTERRUMPIDA','Fuera de servicio'],win:['HISTORIA COMPLETA','El puerto es tuyo']};
     set('dialog-kicker',labels[kind][0]);set('dialog-title',labels[kind][1]);
     let buttons=[];
-    if(kind==='help'){
-      body.innerHTML='<p>Completa dos encargos de cada banda y resuelve la entrega disputada para desbloquear la misión final.</p><ul><li><strong>WASD / flechas:</strong> muévete. En coche, arriba acelera, abajo frena o da marcha atrás y los lados giran.</li><li><strong>E / Acción:</strong> contesta un teléfono, entra o sal del coche y usa el garaje.</li><li><strong>Espacio / Freno:</strong> activa el freno de mano.</li><li><strong>M / mapa:</strong> consulta el GPS o marca el garaje. <strong>Esc:</strong> pausa.</li><li><strong>Garaje G:</strong> repara, recupera energía y baja la alerta a cero.</li></ul>';
+    if(kind==='jobs'){
+      const report=game.lastReport;
+      body.innerHTML=`<div class="board-progress"><span><strong>${game.missionDone}/${FINAL_COUNT}</strong> completadas</span><span>${fmt(game.cash)} CR</span></div>${report?'<div class="board-report" id="board-report" role="status"></div>':''}<div class="job-list">${JOBS.map(([id,job],i)=>{
+        const done=game.completed.has(id),meta=done?'Completada':`${job.tag} · ${fmt(job.pay)} CR`,hint=done?'HECHA':job.level===1?'FÁCIL':job.level===2?'MEDIA':'DIFÍCIL';
+        return `<button type="button" class="job-card" data-job="${id}" data-level="${job.level}" ${done?'disabled':''}><span class="job-number" aria-hidden="true">0${i+1}</span><span class="job-info"><strong>${job.name}</strong><span>${job.summary}</span><small>${meta}</small></span><span class="job-rank">${hint} ${done?'':icon('arrow')}</span></button>`;
+      }).join('')}</div>`;
+      if(report){
+        $('board-report').classList.add(report.style);
+        $('board-report').textContent=`${report.title}: ${report.detail}`;
+      }
+      buttons=[['Volver a la portada','title']];
+    }else if(kind==='help'){
+      body.innerHTML='<p>Elige una de las cinco misiones. Al terminarla, la Central vuelve a abrirse con las que quedan.</p><ul><li><strong>WASD / flechas:</strong> muévete. En coche, arriba acelera, abajo frena o da marcha atrás y los lados giran.</li><li><strong>E / Acción:</strong> entra o sal del coche, usa el garaje o confirma una entrega.</li><li><strong>Espacio / Freno:</strong> activa el freno de mano.</li><li><strong>M / mapa:</strong> consulta el GPS o marca el garaje. <strong>Esc:</strong> pausa.</li><li><strong>Garaje G:</strong> repara, recupera energía y baja la alerta a cero.</li></ul>';
       buttons=[['Entendido','close',true]];
     }else if(kind==='map'){
       body.innerHTML=`<svg viewBox="0 0 2120 1680" class="map-large" role="img" aria-label="Plano con la posición del jugador, la ruta por las calles y los teléfonos">${staticMap+liveMap()}</svg><div class="legend"><span><b style="color:${LIME}">P</b>Pistones</span><span><b style="color:${ORANGE}">M</b>La Marea</span><span><b style="color:${CYAN}">G</b>Garaje</span><span><b>●</b>Tú</span><span><b style="color:${RED}">●</b>Patrulla</span><span><b style="color:${RED}">×</b>Bloqueo</span></div>`;
@@ -895,11 +945,15 @@
       buttons=[['Continuar','close',true],['Cómo jugar','pause-help'],...(game.mission?[['Abandonar encargo','abort']]:[]),['Volver al inicio','title']];
     }else{
       body.innerHTML=`<p id="outcome"></p><p>Encargos: <strong>${game.missionDone}/${FINAL_COUNT}</strong> · Efectivo: <strong>${fmt(game.cash)} CR</strong><br>Récord de esta sesión: <strong>${fmt(best)} CR</strong></p>`;
-      if(kind==='win'){set('outcome',`Has completado los seis encargos. Esta noche elegiste a ${PHONE[game.gift].name}.`);buttons=[['Seguir explorando','free',true],['Volver al inicio','title']];}
-      else{set('outcome',game.endReason);buttons=[['Reintentar','start',true],['Volver al inicio','title']];}
+      if(kind==='win'){set('outcome',`Has completado las cinco misiones. Esta noche elegiste a ${PHONE[game.gift].name}.`);buttons=[['Seguir explorando','free',true],['Nueva partida','reset']];}
+      else{
+        set('outcome',game.endReason+(game.failed?' Tus misiones completadas se conservan.':''));
+        buttons=game.failed?[['Reintentar','retry',true],['Elegir otra misión','board']]:[['Volver a explorar','free',true],['Nueva partida','reset']];
+      }
     }
     actions.innerHTML=buttons.map(([label,id,primary])=>`<button type="button" class="${primary?'primary':'secondary'}" data-action="${id}">${label}</button>`).join('');
-    $('overlay').hidden=false;refreshShell();(actions.querySelector('button')||panel).focus({preventScroll:true});
+    $('overlay').hidden=false;panel.scrollTop=0;refreshShell();
+    (kind==='jobs'?panel:actions.querySelector('button')||panel).focus({preventScroll:true});
   }
   function closeDialog(focus=true){
     dialog=null;$('overlay').hidden=true;refreshShell();
@@ -908,15 +962,23 @@
   }
   function finish(win,reason=''){
     if(phase!=='play')return;
+    if(!win){
+      game.failed=game.mission?.id??null;game.mission=null;game.waypoint=false;
+      game.lastReport={title:'Misión interrumpida',detail:'Tu progreso se conserva. Elige una misión para volver a intentarlo.',style:'retry'};
+    }
     best=Math.max(best,game.cash);game.endReason=reason;phase=win?'win':'end';
     effect(win?'win':'loss');showDialog(phase);
   }
-  function showTitle(){phase='title';game=fresh();closeDialog(false);$('start-btn').focus({preventScroll:true});}
+  function showTitle(reset=false){
+    if(reset)game=fresh();
+    else{game.mission=null;game.waypoint=false;clearPursuit();}
+    phase='title';closeDialog(false);$('start-btn').focus({preventScroll:true});
+  }
   function pause(){
     if(phase!=='play')return;
     if(dialog)closeDialog();else showDialog('pause');
   }
-  function openMap(){if(phase==='end'||phase==='win')return;if(dialog==='map')closeDialog();else if(!dialog)showDialog('map');}
+  function openMap(){if(phase!=='play'&&phase!=='title')return;if(dialog==='map')closeDialog();else if(!dialog)showDialog('map');}
   $('start-btn').addEventListener('click',start);
   $('sound').addEventListener('click',toggleSound);
   $('pause').addEventListener('click',pause);
@@ -924,25 +986,42 @@
   $('map-btn').addEventListener('click',openMap);
   $('touch-map').addEventListener('click',openMap);
   $('close-overlay').addEventListener('click',()=>closeDialog());
+  $('dialog-content').addEventListener('click',e=>{
+    const button=e.target.closest('[data-job]');
+    if(dialog==='jobs'&&button&&!button.disabled)startJob(button.dataset.job);
+  });
   $('dialog-actions').addEventListener('click',e=>{
     const a=e.target.closest('button')?.dataset.action;
     if(a==='close')closeDialog();
-    if(a==='start')start();
     if(a==='title')showTitle();
+    if(a==='reset')showTitle(true);
+    if(a==='board')showBoard();
+    if(a==='retry'&&game.failed)startJob(game.failed);
     if(a==='pause-help')showDialog('help');
-    if(a==='abort'){cancelJob('Encargo abandonado. Puedes volver a intentarlo.');closeDialog();}
+    if(a==='abort')cancelJob('Misión abandonada');
     if(a==='waypoint'){game.waypoint=!game.waypoint;notify(game.waypoint?'GPS: garaje marcado.':'GPS: destino eliminado.');closeDialog();}
-    if(a==='free'){phase='play';closeDialog(false);$('stage').focus({preventScroll:true});}
+    if(a==='free'){
+      if(phase==='end'){
+        clearPursuit();game.player={x:507,y:486,a:-Math.PI/2,hp:100,car:null};game.nav=null;
+      }
+      phase='play';closeDialog(false);$('stage').focus({preventScroll:true});
+    }
   });
   document.addEventListener('keydown',e=>{
     if(e.ctrlKey||e.altKey||e.metaKey)return;
     if(e.code==='Tab'&&dialog){
-      const b=[...$('overlay-panel').querySelectorAll('button:not([hidden])')]; if(!b.length)return;
+      const b=[...$('overlay-panel').querySelectorAll('button:not([hidden]):not(:disabled)')]; if(!b.length)return;
       if(e.shiftKey&&(document.activeElement===b[0]||!b.includes(document.activeElement))){e.preventDefault();b.at(-1).focus();}
       else if(!e.shiftKey&&(document.activeElement===b.at(-1)||!b.includes(document.activeElement))){e.preventDefault();b[0].focus();}
       return;
     }
-    if(e.code==='Escape'&&!e.repeat){e.preventDefault();if(dialog&&dialog!=='end'&&dialog!=='win')closeDialog();else if(!dialog)pause();return;}
+    if(e.code==='Escape'&&!e.repeat){
+      e.preventDefault();if(dialog==='jobs')showTitle();
+      else if(dialog&&dialog!=='end'&&dialog!=='win')closeDialog();else if(!dialog)pause();return;
+    }
+    if(dialog==='jobs'&&!e.repeat&&/^[1-5]$/.test(e.key)){
+      e.preventDefault();const id=JOBS[Number(e.key)-1][0];startJob(id);return;
+    }
     if(e.code==='KeyV'&&!e.repeat){toggleSound();return;}
     if(e.code==='KeyM'&&!e.repeat){e.preventDefault();openMap();return;}
     if(e.code==='Enter'&&phase==='title'&&!dialog&&!e.target.closest('button,a')){e.preventDefault();start();return;}
@@ -975,11 +1054,12 @@
       controls:'WASD/arrow keys move and drive, E interact, Space handbrake, M map, Esc pause',
       alert:game.heat,cash:game.cash,crewJobs:game.rep,trust:game.trust,reward:game.gift,dockOpen:dockOpen(),
       goal:goal?{x:round(goal.x),y:round(goal.y),text:goal.text||goal.name}:null,
-      mission:m?{name:m.job.name,stage:m.idx+1,stages:m.job.steps.length,left:m.deadline?round(m.deadline-game.time):null,choose:!!m.job.steps[m.idx].choice}:null,
+      mission:m?{id:m.id,name:m.job.name,stage:m.idx+1,stages:m.job.steps.length,left:m.deadline?round(m.deadline-game.time):null,waitingForCar:m.pendingTimer,choose:!!m.job.steps[m.idx].choice}:null,
+      campaign:{total:FINAL_COUNT,completed:[...game.completed],remaining:JOBS.map(([id])=>id).filter(id=>!game.completed.has(id))},
       gps:route?{dest:game.waypoint?'garage':'mission',meters:Math.round(route.length),points:route.points.map(q=>[round(q.x),round(q.y)])}:null,
       finished:game.won,garage:GARAGE,phones:PHONE,
       nearbyCars:game.cars.filter(c=>c.kind!=='traffic'&&dist(c,p)<350).map(c=>({x:round(c.x),y:round(c.y),id:c.id,type:c.type})),
-      police:game.police.map(c=>({x:round(c.x),y:round(c.y),role:c.role})),
+      police:game.police.map(c=>({x:round(c.x),y:round(c.y),role:c.role,speed:round(c.s||0)})),patrolMaxSpeed:COP_BASE+game.heat*COP_PER_STAR,
       block:game.block?{x:game.block.x,y:game.block.y,horizontal:!!game.block.dx}:null,prompt:interactable()?.name||null});
   };
   window.advanceTime=ms=>{
