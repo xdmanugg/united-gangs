@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10120f">
+  <meta name="description" content="Distrito Cero, un arcade de conducción cenital en una ciudad de bandas rivales.">
+  <title>Distrito Cero · Arcade urbano</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23171a15' d='M0 0h32v32H0z'/%3E%3Cpath fill='%23d8fa55' d='M7 7h7v7H7zm11 0h7v7h-7zM7 18h7v7H7zm11 0h7v7h-7z'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./base.css">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./game.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#stage">Saltar al juego</a>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 12 7-12 7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M12 5 6 9H3v6h3l6 4V5zm4 4a5 5 0 0 1 0 6m3-9a9 9 0 0 1 0 12"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M12 5 6 9H3v6h3l6 4V5zm4 5 5 5m0-5-5 5"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5v14m6-14v14"/></symbol>
+    <symbol id="i-keys" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01M8 16h8"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zm6-3v15m6-12v15"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z"/></symbol>
+  </svg>
+  <header class="mast">
+    <div class="frame mast-inner">
+      <span class="wordmark"><svg class="icon"><use href="#i-grid"/></svg> DISTRITO<span>·</span>CERO</span>
+      <span class="header-label">ARCADE URBANO <b>/</b> VISTA CENITAL</span>
+      <div class="utility">
+        <button id="sound" class="utility-btn" type="button" aria-pressed="false" aria-label="Activar sonido" title="Activar sonido (V)"><svg class="icon"><use href="#i-mute"/></svg><span>SONIDO</span></button>
+        <button id="pause" class="utility-btn" type="button" aria-label="Pausar o reanudar partida" title="Pausa (Esc)" disabled><svg class="icon"><use href="#i-pause"/></svg><span>PAUSA</span></button>
+      </div>
+    </div>
+  </header>
+  <main class="frame">
+    <div class="topline"><span><i></i> PUERTO UMBRAL <b>//</b> 02:17 H</span><span class="edition">ARCHIVO DE CALLE <b>///</b> N.º 01</span></div>
+    <div class="workspace">
+      <section class="cabinet" aria-label="Distrito Cero, juego arcade">
+        <div class="stage" id="stage" tabindex="-1" data-phase="title">
+          <canvas id="game" aria-label="Ciudad de Puerto Umbral, vista cenital"></canvas>
+          <div class="art" aria-hidden="true"></div>
+          <div class="reticle top-left" aria-hidden="true"></div><div class="reticle top-right" aria-hidden="true"></div><div class="reticle bottom-right" aria-hidden="true"></div>
+          <div id="title-screen" class="title-screen">
+            <span class="kicker">DOS BANDAS <b>/</b> UNA CIUDAD</span>
+            <h1>DISTRITO<span>CERO<span class="period">.</span></span></h1>
+            <p>Recorre el puerto, gana respeto y escapa de las patrullas.</p>
+            <div class="hero-actions">
+              <button id="start-btn" class="primary" type="button"><svg class="icon"><use href="#i-play"/></svg> JUGAR</button>
+              <button id="tutorial" class="quiet" type="button"><svg class="icon"><use href="#i-keys"/></svg> Cómo jugar</button>
+            </div>
+          </div>
+          <div id="hud" class="hud" hidden>
+            <div class="hud-top">
+              <div class="hud-panel"><span>EFECTIVO</span><strong id="cash">0 CR</strong></div>
+              <div class="hud-panel pursuit"><span>ALERTA POLICIAL</span><strong id="stars" aria-label="Alerta: cero de tres"><i></i><i></i><i></i></strong></div>
+              <div class="hud-panel health"><span id="condition-label">ENERGÍA</span><meter id="integrity" min="0" max="100" value="100" aria-label="Integridad"></meter></div>
+            </div>
+            <div id="broadcast" class="broadcast" role="status" hidden></div>
+            <div id="mobile-goal" class="mobile-goal" hidden><span id="mobile-goal-progress"></span><span id="mobile-goal-text"></span></div>
+            <div class="hud-bottom"><span id="neighborhood">EL CRUCE</span><span id="prompt" hidden></span><span id="speed" hidden>0 KM/H</span></div>
+          </div>
+          <div id="overlay" class="overlay" hidden>
+            <section id="overlay-panel" class="overlay-panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
+              <button id="close-overlay" class="icon-button" type="button" title="Cerrar" aria-label="Cerrar"><svg class="icon"><use href="#i-close"/></svg></button>
+              <div class="kicker" id="dialog-kicker"></div>
+              <h2 id="dialog-title"></h2>
+              <div id="dialog-content"></div>
+              <div class="dialog-actions" id="dialog-actions"></div>
+            </section>
+          </div>
+        </div>
+        <div id="touch" class="touch" hidden>
+          <div class="dpad" aria-label="Movimiento">
+            <button type="button" data-key="ArrowUp" aria-label="Arriba o acelerar">↑</button>
+            <button type="button" data-key="ArrowLeft" aria-label="Izquierda">←</button>
+            <button type="button" data-key="ArrowDown" aria-label="Abajo o marcha atrás">↓</button>
+            <button type="button" data-key="ArrowRight" aria-label="Derecha">→</button>
+          </div>
+          <div class="touch-actions"><button id="touch-map" type="button" aria-label="Abrir el mapa"><svg class="icon"><use href="#i-map"/></svg></button><button type="button" data-key="Space">FRENO</button><button type="button" data-key="KeyE" class="touch-use">ACCIÓN</button></div>
+        </div>
+        <div class="statusbar"><span><i></i> <span id="state-label">ESPERANDO JUGADOR</span></span><span id="debug" aria-hidden="true">2D / 60 FPS</span><span class="build">DC<span>_</span>01</span></div>
+      </section>
+
+      <aside class="guidebox" aria-label="Guía de calle">
+        <div class="guide-head"><span><svg class="icon"><use href="#i-target"/></svg> GUÍA DE CALLE</span><span>01—05</span></div>
+        <div id="brief" class="guide-intro">
+          <div class="small-tag"><i></i> CENTRAL DE RADIO</div>
+          <h2 id="brief-title">Hazte un nombre</h2>
+          <p id="brief-text">Busca teléfonos de las bandas, acepta sus encargos y mantén un ojo en el nivel de alerta.</p>
+          <span id="mission-distance" class="distance" hidden></span>
+        </div>
+        <div class="crews">
+          <div class="crew"><i class="crew-mark lime">P</i><div><strong>Los Pistones</strong><span id="p-rep">El Cruce</span></div><span id="p-count">0/2</span></div>
+          <div class="crew"><i class="crew-mark orange">M</i><div><strong>La Marea</strong><span id="m-rep">Viejo Muelle</span></div><span id="m-count">0/2</span></div>
+        </div>
+        <div class="guide-map">
+          <div class="guide-map-head"><span><svg class="icon"><use href="#i-map"/></svg> PLANO DEL DISTRITO</span><button id="map-btn" type="button" aria-label="Abrir plano del distrito" title="Abrir plano (M)"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
+          <svg id="mini" viewBox="0 0 2120 1680" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa de Puerto Umbral"></svg>
+        </div>
+      </aside>
+    </div>
+
+    <section class="fieldguide" aria-labelledby="field-title">
+      <div class="field-label"><span>MANUAL RÁPIDO / 01</span><h2 id="field-title">Los controles</h2></div>
+      <div class="control"><strong>Muévete</strong><div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>o</span><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div></div>
+      <div class="control"><strong>Interactúa / sube al coche</strong><div><kbd>E</kbd></div></div>
+      <div class="control last"><strong>Freno de mano / mapa</strong><div><kbd>Espacio</kbd><kbd>M</kbd></div></div>
+    </section>
+  </main>
+  <footer class="frame footer"><span>DISTRITO CERO / PUERTO UMBRAL</span><span>JUEGO ORIGINAL · ARCADE DE NAVEGADOR</span></footer>
+</body>
+</html>
