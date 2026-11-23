@@ -17,6 +17,8 @@ El pase tiene 50 niveles de 500 XP cada uno. La XP se acumula incluso con el pas
 
 El perfil se mantiene mientras la página esté abierta. Para continuar después de recargar, usa **Pase de batalla → Respaldo de partida** desde la portada y conserva el código de respaldo fuera del juego. Restaurarlo reemplaza el perfil de la sesión. No hay cuentas ni almacenamiento automático en un servidor.
 
+El modo de pantalla completa ocupa toda el área disponible en la pestaña o en la vista previa sin ocultar las barras del navegador.
+
 ## Ejecutar o publicar
 
 Sirve la carpeta raíz por HTTP para desarrollo local, por ejemplo con `python3 -m http.server 8080`, y abre `http://localhost:8080`. Para publicar, cualquier alojamiento web estático HTTPS puede servir esos mismos archivos. En [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site), la fuente puede ser la rama principal y la carpeta `/ (root)`; el repositorio debe tener acceso a Pages según el plan.

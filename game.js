@@ -1209,14 +1209,7 @@
     $('backup-out').value=progress.pack(profile);
   }
   function toggleFullscreen(){
-    const cabinet=$('cabinet');
-    if(document.fullscreenElement===cabinet&&document.exitFullscreen){document.exitFullscreen().catch(()=>{});return;}
-    if(cabinet.classList.contains('viewport-fill')){cabinet.classList.remove('viewport-fill');updateFullscreen();return;}
-    const fallback=()=>{cabinet.classList.add('viewport-fill');updateFullscreen();};
-    if(cabinet.requestFullscreen&&document.fullscreenEnabled)cabinet.requestFullscreen().catch(fallback);else fallback();
-  }
-  function updateFullscreen(){
-    const active=document.fullscreenElement===$('cabinet')||$('cabinet').classList.contains('viewport-fill');
+    const active=$('cabinet').classList.toggle('viewport-fill');
     document.documentElement.classList.toggle('game-expanded',active);
     $('fs-btn').setAttribute('aria-pressed',String(active));
     const label=active?'Salir de pantalla completa':'Pantalla completa';
@@ -1320,7 +1313,6 @@
   $('shop-btn').addEventListener('click',()=>openSide('shop'));
   $('pass-btn').addEventListener('click',()=>openSide('pass'));
   $('fs-btn').addEventListener('click',()=>{toggleFullscreen();if(!dialog)$('stage').focus({preventScroll:true});});
-  document.addEventListener('fullscreenchange',updateFullscreen);
   $('sound').addEventListener('click',toggleSound);
   $('pause').addEventListener('click',pause);
   $('fs-pause').addEventListener('click',pause);
