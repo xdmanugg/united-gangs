@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./base.css">
-  <link rel="stylesheet" href="./style.css">
-  <script src="./game.js" defer></script>
+  <link rel="stylesheet" href="./style.css?v=2">
+  <script src="./game.js?v=2" defer></script>
 </head>
 <body>
   <a class="skip" href="#stage">Saltar al juego</a>
@@ -39,7 +39,7 @@
     </div>
   </header>
   <main class="frame">
-    <div class="topline"><span><i></i> PUERTO UMBRAL <b>//</b> 02:17 H</span><span class="edition">ARCHIVO DE CALLE <b>///</b> N.º 01</span></div>
+    <div class="topline"><span><i></i> PUERTO UMBRAL <b>//</b> 02:17 H</span><span class="edition">ARCHIVO DE CALLE <b>///</b> N.º 02</span></div>
     <div class="workspace">
       <section class="cabinet" aria-label="Distrito Cero, juego arcade">
         <div class="stage" id="stage" tabindex="-1" data-phase="title">
@@ -84,11 +84,11 @@
           </div>
           <div class="touch-actions"><button id="touch-map" type="button" aria-label="Abrir el mapa"><svg class="icon"><use href="#i-map"/></svg></button><button type="button" data-key="Space">FRENO</button><button type="button" data-key="KeyE" class="touch-use">ACCIÓN</button></div>
         </div>
-        <div class="statusbar"><span><i></i> <span id="state-label">ESPERANDO JUGADOR</span></span><span id="debug" aria-hidden="true">2D / 60 FPS</span><span class="build">DC<span>_</span>01</span></div>
+        <div class="statusbar"><span><i></i> <span id="state-label">ESPERANDO JUGADOR</span></span><span id="debug" aria-hidden="true">2D / 60 FPS</span><span class="build">DC<span>_</span>02</span></div>
       </section>
 
       <aside class="guidebox" aria-label="Guía de calle">
-        <div class="guide-head"><span><svg class="icon"><use href="#i-target"/></svg> GUÍA DE CALLE</span><span>01—05</span></div>
+        <div class="guide-head"><span><svg class="icon"><use href="#i-target"/></svg> GUÍA DE CALLE</span><span>01—06</span></div>
         <div id="brief" class="guide-intro">
           <div class="small-tag"><i></i> CENTRAL DE RADIO</div>
           <h2 id="brief-title">Hazte un nombre</h2>
@@ -99,6 +99,7 @@
           <div class="crew"><i class="crew-mark lime">P</i><div><strong>Los Pistones</strong><span id="p-rep">El Cruce</span></div><span id="p-count">0/2</span></div>
           <div class="crew"><i class="crew-mark orange">M</i><div><strong>La Marea</strong><span id="m-rep">Viejo Muelle</span></div><span id="m-count">0/2</span></div>
         </div>
+        <div id="reward" class="reward" hidden><span>FAVOR DE BANDA</span><strong id="reward-name"></strong></div>
         <div class="guide-map">
           <div class="guide-map-head"><span><svg class="icon"><use href="#i-map"/></svg> PLANO DEL DISTRITO</span><button id="map-btn" type="button" aria-label="Abrir plano del distrito" title="Abrir plano (M)"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
           <svg id="mini" viewBox="0 0 2120 1680" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa de Puerto Umbral"></svg>

@@ -21,7 +21,7 @@ a{color:inherit}
 .topline{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);padding-block:var(--s6) var(--s3);font-size:var(--xs);letter-spacing:.12em;color:var(--muted)}
 .topline i,.statusbar i,.small-tag i{display:inline-block;width:7px;height:7px;background:var(--acid);margin-right:var(--s2);box-shadow:0 0 10px #d8fa5560;vertical-align:1px}
 .workspace{display:grid;grid-template-columns:minmax(0,1fr) 296px;gap:var(--s4);align-items:stretch}
-.cabinet{min-width:0;border:1px solid #3f4738;background:#121510}
+.cabinet{min-width:0;align-self:start;border:1px solid #3f4738;background:#121510}
 .stage{position:relative;isolation:isolate;min-height:466px;height:clamp(465px,42vw,550px);overflow:hidden;background:#181e18;display:grid;align-items:center;outline-offset:-4px!important}
 #game,.art{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
 .art{background-image:linear-gradient(90deg,rgba(13,16,13,.96),rgba(13,16,13,.72) 31%,rgba(13,16,13,.10) 74%),linear-gradient(0deg,#12151088,transparent 45%),url('./assets/puerto-umbral.webp');background-size:cover;background-position:center,center,56% center;z-index:0}
@@ -51,7 +51,10 @@ h1,h2,p{margin:0}
 .crew{min-height:61px;display:grid;grid-template-columns:30px 1fr auto;gap:var(--s3);align-items:center;padding:var(--s2) var(--s4)}
 .crew+.crew{border-top:1px solid var(--line)}
 .crew strong{display:block;font-size:var(--sm);font-weight:600}.crew span{color:var(--muted);font-size:var(--xs)}.crew>span{color:var(--dim)}
+.crew span[data-rapport="hostile"]{color:var(--red)}.crew span[data-rapport="ally"]{color:var(--acid)}
 .crew-mark{display:grid;place-items:center;font-style:normal;height:30px;font-size:var(--base);font-weight:700;border:1px solid currentColor}.lime{color:var(--acid);background:#d8fa5512}.orange{color:var(--ember);background:#ff9f6912}
+.reward{border-bottom:1px solid var(--line);padding:var(--s2) var(--s4);display:grid;gap:var(--s1);font-size:var(--xs);background:#202719}
+.reward>span{color:#a9bb94;letter-spacing:.055em}.reward strong{color:var(--acid);font-weight:600}
 .guide-map{flex:1;min-height:130px;display:flex;flex-direction:column;padding:var(--s1) var(--s4) var(--s4)}
 .guide-map-head{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:var(--xs);letter-spacing:.035em;gap:var(--s1)}
 .guide-map-head button{display:grid;place-items:center;width:44px;height:44px;border:1px solid transparent;background:none;color:var(--acid);padding:0;margin-right:calc(-1 * var(--s2))}
@@ -81,3 +84,5 @@ meter{width:90px;height:12px;display:block;margin-top:var(--s2);appearance:none}
 @media(max-width:420px){.utility{gap:var(--s1)}.utility-btn{padding-inline:0}.utility-btn span{display:none}.wordmark{font-size:var(--xs)}.edition{display:none}.stage[data-phase="play"],.stage[data-phase="pause"],.stage[data-phase="map"]{height:clamp(320px,95vw,418px)}.hero-actions{gap:var(--s1)}.primary,.quiet,.secondary{padding-inline:var(--s2)}.title-screen h1{font-size:clamp(3.8rem,19vw,5.2rem)}.hud-top{top:14px;left:13px;right:13px;gap:var(--s1)}.hud-panel{padding-inline:var(--s1)}.hud-panel.pursuit{min-width:0}meter{width:62px}.hud-bottom{left:13px;right:13px;bottom:13px;flex-wrap:wrap}.hud-bottom>span{padding-inline:var(--s1)}.broadcast{left:13px}.footer{font-size:var(--xs)}}
 @media(max-width:340px){.guidebox{grid-template-columns:1fr}.guide-head,.guide-map{grid-column:1}.crews{border-left:0;border-top:1px solid var(--line)}.control strong{min-height:2em}.touch-actions button{min-width:42px}.touch .touch-use{padding-inline:var(--s1)}}
 @media(max-width:420px){.hud-bottom:has(#prompt:not([hidden])) #neighborhood{display:none}.hud-bottom:has(#prompt:not([hidden])) #prompt{margin-inline:0;text-align:left}}
+@media(max-width:760px){.reward{grid-column:1/-1;border-bottom:0;border-top:1px solid var(--line)}}
+@media(min-width:761px){.guidebox:has(.reward:not([hidden])) #mini{max-height:128px}}
