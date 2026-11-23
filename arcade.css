@@ -1,0 +1,71 @@
+.arcade-bar{display:flex;flex-wrap:wrap;min-height:47px;gap:4px;padding:5px 10px;background:#20182f;border-block:1px solid #53435c}
+.arcade-bar button{display:inline-flex;gap:7px;align-items:center;justify-content:center;min-height:37px;padding:4px 10px;border:1px solid transparent;border-radius:5px;background:transparent;color:#f4e6f6;font:600 var(--xs)/1.15 var(--font-body);white-space:nowrap}
+.arcade-bar button:hover:not(:disabled),.arcade-bar button[aria-pressed=true]{border-color:#ab7b9f;background:#392644}
+.arcade-bar button:disabled{opacity:.48}
+.arcade-bar #fs-btn{margin-left:auto}
+.arcade-bar #fs-pause{display:none}
+.arcade-bar #free-job{color:var(--mint);border-color:#54877e;background:#234043}
+.arcade-bar .icon{width:16px;height:16px}
+#wrench-stock{display:block;margin-top:3px;color:#ffe09e;font:600 var(--xs)/1.2 var(--font-label);white-space:nowrap}
+.broadcast{top:92px}
+.objective-toast{display:grid;gap:4px;max-width:min(70%,420px);border-left:3px solid var(--mint);padding:9px 13px;color:#fff0fc;box-shadow:0 9px 24px #16101d75}
+.hud:has(.objective-toast:not([hidden])) #broadcast{top:161px}
+.objective-toast strong{color:var(--mint);font:600 var(--xs)/1.12 var(--font-label);letter-spacing:.07em}
+.objective-toast span{font:600 var(--sm)/1.26 var(--font-body)}
+.overlay-panel.arcade-dialog{max-width:675px}
+.arcade-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:10px 14px;margin:0 0 var(--s3);border:1px solid #89638c;border-radius:6px;background:#3e2b4a}
+.arcade-summary>div{display:grid;gap:3px}
+.arcade-summary span,.garage-card small,.pass-meter span,.arcade-form label{color:var(--mint);font:600 var(--xs)/1.25 var(--font-label);letter-spacing:.04em}
+.arcade-summary strong{display:flex;align-items:center;gap:6px;color:#fff1fb;font:800 clamp(1.45rem,4vw,2rem)/1 var(--font-display)}
+.arcade-summary .icon{width:17px;height:17px}
+.garage-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}
+.garage-card{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:11px;border:1px solid #735a80;border-radius:7px;background:#2b2140}
+.garage-card small{color:var(--paint);font-size:var(--xs)}
+.garage-card h3{margin:0;font:800 clamp(1.2rem,2.5vw,1.65rem)/1 var(--font-display);text-transform:uppercase}
+.garage-card>p{margin:0 0 4px;font-size:var(--xs);line-height:1.3}
+.garage-card button{margin-top:auto;min-height:36px;font-size:var(--xs);padding-inline:9px}
+.garage-card button:disabled{opacity:.55;cursor:not-allowed}
+.ride-mark{color:var(--paint);width:41px;height:31px;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--paint) 55%,#423250);background:color-mix(in srgb,var(--paint) 16%,#251e35);border-radius:4px}
+.ride-mark .icon{width:20px;height:20px}
+.pass-meter{display:grid;gap:5px;margin:var(--s2) 0 var(--s3)}
+.pass-meter progress{width:100%;height:12px;accent-color:#99f1d7}
+.pass-grid{list-style:none;margin:0 0 var(--s3);padding:0;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+.pass-grid li{min-width:0;min-height:40px;display:grid;align-content:center;text-align:center;padding:3px 1px;border:1px solid #695675;border-radius:4px;background:#1e192e;color:#d1bedb;font:600 var(--xs)/1.1 var(--font-label)}
+.pass-grid li.milestone{border-color:#a78965;color:#ffdcaa}
+.pass-grid li.earned{border-color:#74aa9e;background:#254549;color:#c7fff2}
+.pass-grid li.top-rank{border-color:#f8b4df;color:#ffe3fb}
+.pass-grid small{font:600 .59rem/1.05 var(--font-body);overflow-wrap:anywhere}
+.arcade-form{display:grid;gap:6px;margin:var(--s3) 0}
+.arcade-form>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.arcade-form input,.arcade-form textarea{width:100%;min-width:0;color:var(--ink);background:#161226;border:1px solid #826993;border-radius:6px;padding:var(--s2);font:500 var(--sm)/1.25 var(--font-label)}
+.arcade-form textarea{resize:vertical}
+.arcade-form small{color:#e3cdf0;font-size:var(--xs)}
+.arcade-form>button{justify-self:start}
+.overlay-panel .arcade-feedback{margin:8px 0 0;color:#bbffeb}
+.arcade-feedback:empty{display:none}
+.touch-actions{flex-wrap:wrap;justify-content:flex-end}
+.touch-actions #touch-flight:not([hidden]){color:#c9c3ff;border-color:#8882d1}
+@media(min-width:761px){
+  .game-expanded .mobile-goal:not([hidden]),.mobile-goal.clock:not([hidden]){position:absolute;left:17px;bottom:50px;display:flex;gap:10px;background:#201832ed;border:1px solid #9e7990;border-radius:5px;padding:5px 8px;font-size:var(--xs);color:#ffe9f7}
+  .game-expanded .mobile-goal span:first-child,.mobile-goal.clock span:first-child{color:var(--mint);font-weight:700;white-space:nowrap}
+}
+@media(max-width:520px){
+  .arcade-bar{padding-inline:5px}
+  .arcade-bar button{padding-inline:7px;min-height:40px}
+  #fs-label{display:none}
+  .objective-toast{max-width:calc(100% - 26px)}
+  .garage-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pass-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .touch-actions{max-width:151px}
+  .touch{align-items:end}
+  .stage[data-phase="title"]:has(.arcade-dialog){height:min(595px,87svh)}
+}
+.game-expanded{overflow:hidden}
+#cabinet:fullscreen,#cabinet.viewport-fill{display:flex;flex-flow:column;width:100%;height:100%;max-width:none;border:0;border-radius:0;background:#171428}
+#cabinet.viewport-fill{position:fixed;inset:0;z-index:999}
+#cabinet:is(:fullscreen,.viewport-fill) .stage{flex:1 1 0;min-height:0;height:auto}
+#cabinet:is(:fullscreen,.viewport-fill) .overlay{position:absolute;overflow:auto}
+#cabinet:is(:fullscreen,.viewport-fill) .overlay-panel{max-height:100%}
+#cabinet:is(:fullscreen,.viewport-fill) #fs-btn{pointer-events:auto}
+#cabinet:is(:fullscreen,.viewport-fill) #fs-pause:not(:disabled){display:inline-flex}
+#cabinet:is(:fullscreen,.viewport-fill) .arcade-bar{flex:none;padding-bottom:max(5px,env(safe-area-inset-bottom))}

@@ -1,7 +1,7 @@
 /* Two-player data channels. The server only introduces peers; the host runs the game. */
 (() => {
   'use strict';
-  const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', version='ug-5', prefix='united-gangs-v5-';
+  const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', version='ug-6', prefix='united-gangs-v6-';
   const valid=/^[A-HJ-NP-Z2-9]{8}$/;
   let peer=null, conn=null, loading, mode='', code='', timer=0, accepted=false, generation=0;
   const net={

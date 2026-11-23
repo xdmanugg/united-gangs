@@ -1,14 +1,21 @@
 # United Gangs
 
-Juego de conducción 2D para navegador, con campaña en solitario y cooperativo online para dos jugadores. No necesita un proceso de compilación.
+Juego de conducción 2D para navegador, con una campaña local y modo libre en solitario o cooperativo para dos jugadores. No necesita un proceso de compilación.
 
 ## Cómo jugar
 
-- **En solitario:** elige Puerto Umbral, Costa Candela, Sierra Eléctrica o Ciudad Prisma. Las seis misiones de cada mapa se pueden jugar en cualquier orden. Después de completar las 24, se desbloquea la única misión de Miami: **Bandas unidas**.
-- **Cooperativo online:** un jugador selecciona **Crear sala** y comparte el código de ocho caracteres. El otro abre el juego, pega el código y pulsa **Unirme**. El anfitrión elige el mapa y la misión. Los dos conducen su propio coche y comparten objetivos, créditos y avance.
-- **Controles:** WASD o flechas para moverse y conducir, E para entrar o salir del coche y usar el garaje, Espacio para el freno de mano, M para el mapa y Esc para el menú. En móvil hay controles táctiles. Los objetivos normales se activan al llegar; las paradas técnicas indican cuánto tiempo hay que quedarse quieto.
+- **Historia local:** elige Puerto Umbral, Costa Candela, Sierra Eléctrica o Ciudad Prisma. Las seis misiones de cada mapa se pueden jugar en cualquier orden. Después de completar las 24, se desbloquea **Bandas unidas**, la única misión de Miami. Cada tramo final tiene un límite de tiempo y en Miami también hay un límite total de 8 minutos.
+- **Modo libre:** explora cualquiera de las cuatro primeras ciudades. Pulsa J o **Encargo** para pedir una secundaria. Puedes repetir tantas como quieras; se generan rutas para entregas, carreras, persecuciones y recorridos.
+- **Cooperativo online:** uno pulsa **Crear sala** y comparte el código de ocho caracteres. El otro lo introduce en **Unirme**. El anfitrión elige el mapa y cualquiera puede pedir encargos. Los dos conducen su propio coche, comparten objetivos y cada uno gana recompensas para su inventario. La campaña nunca se juega online.
+- **Controles:** WASD o flechas para moverse, E para entrar, salir o usar el garaje, Espacio para gastar una llave inglesa y reparar el coche, Mayús para el freno de mano, H para despegar o aterrizar con el Halo X-9, M para el mapa, F para pantalla completa y Esc para el menú. En móvil hay controles táctiles. Las instrucciones aparecen como avisos de radio y los objetivos se activan al llegar.
 
-El progreso se conserva mientras no recargues la página. El avance de una sala lo guarda el anfitrión durante su sesión; no se escribe en archivos ni cuentas.
+## Progresión
+
+Cada misión completada da créditos, XP y una llave inglesa. Usa los créditos en la tienda y equipa un coche para tu próxima salida. El Halo X-9 puede sobrevolar edificios y canales, pero debes aterrizar para completar objetivos y no puedes bajar del coche en el aire.
+
+El pase tiene 50 niveles de 500 XP cada uno. La XP se acumula incluso con el pase bloqueado. Completar la historia lo desbloquea y existe una pista escondida en modo libre cuyo código desbloquea todos los niveles. Las recompensas de cinco en cinco se entregan automáticamente, con el deportivo Aurora 50 como premio final.
+
+El perfil se mantiene mientras la página esté abierta. Para continuar después de recargar, usa **Pase de batalla → Respaldo de partida** desde la portada y conserva el código de respaldo fuera del juego. Restaurarlo reemplaza el perfil de la sesión. No hay cuentas ni almacenamiento automático en un servidor.
 
 ## Ejecutar o publicar
 
