@@ -564,7 +564,7 @@
     if(phase==='title')return;
     const goal=activeGoal();
     if(goal){
-      const tx=(goal.x-camera.x)*viewScale,ty=(goal.y-camera.y)*viewScale,l=23,r=width-23,t=88,b=height-55;
+      const tx=(goal.x-camera.x)*viewScale,ty=(goal.y-camera.y)*viewScale,l=23,r=width-23,t=88,b=height-(width<=760&&game.mission?96:55);
       if(tx<l||tx>r||ty<t||ty>b){
         const x=clamp(tx,l,r),y=clamp(ty,t,b),a=Math.atan2(ty-y,tx-x);
         ctx.save();ctx.translate(x,y);ctx.rotate(a);
@@ -628,7 +628,7 @@
     $('touch').hidden=phase!=='play'||!!dialog;
     $('pause').disabled=phase==='title'||phase==='end'||phase==='win';
     $('pause').setAttribute('aria-pressed',String(dialog==='pause'));
-    set('state-label',dialog==='pause'?'PARTIDA EN PAUSA':dialog==='map'?'PLANO DEL DISTRITO':phase==='title'?'ESPERANDO JUGADOR':phase==='end'?'FUERA DE SERVICIO':phase==='win'?'DISTRITO COMPLETADO':'EN DIRECTO · PUERTO UMBRAL');
+    set('state-label',dialog==='pause'?'PARTIDA EN PAUSA':dialog==='map'?'PLANO DEL DISTRITO':phase==='title'?'ESPERANDO JUGADOR':phase==='end'?'FUERA DE SERVICIO':phase==='win'?'DISTRITO COMPLETADO':'EN DIRECTO');
     updateUI();paintDirty=true;render();
   }
   function clearInput(){keys.clear();touches.clear();document.querySelectorAll('.held').forEach(b=>b.classList.remove('held'));}
@@ -665,7 +665,7 @@
   }
   function closeDialog(focus=true){
     dialog=null;$('overlay').hidden=true;refreshShell();
-    if(focus){const target=lastFocus&&lastFocus.isConnected&&!lastFocus.closest('[hidden]')?lastFocus:phase==='title'?$('start-btn'):$('stage');target.focus({preventScroll:true});}
+    if(focus){const target=phase==='play'?$('stage'):lastFocus&&lastFocus.isConnected&&!lastFocus.closest('[hidden]')?lastFocus:$('start-btn');target.focus({preventScroll:true});}
     lastFocus=null;
   }
   function finish(win,reason=''){
