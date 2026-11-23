@@ -444,7 +444,7 @@
       c.claimed=true;
       if(c.reward)notify('Deportivo de Los Pistones · mayor velocidad, menos agarre.');
     }
-    updateUI();
+    game.nav=null;updateUI();
   }
 
   const down=(a,b)=>keys.has(a)||(b&&keys.has(b))||[...touches.values()].some(k=>k===a||k===b);
@@ -848,7 +848,7 @@
     }else{
       const all=finalAvailable(),pending=disputeAvailable(),title=phase==='title';
       set('brief-title',title?'Hazte un nombre':game.won?'Ciudad libre':all?'Una última llamada':pending?'Llamada urgente':'Busca un teléfono');
-      set('brief-text',title?'Trabaja para las bandas, elige un bando cuando sus intereses choquen y mantén un ojo en el nivel de alerta.':game.won?'Has completado la historia. La ciudad sigue abierta.':all?'Vuelve al teléfono de Los Pistones en El Cruce.':pending?'Contesta cualquiera de los dos teléfonos. Hay una furgoneta en disputa.':'Acércate a un teléfono marcado en el mapa y acepta un encargo.');
+      set('brief-text',title?'Acepta encargos, elige bando y no pierdas de vista a las patrullas.':game.won?'Has completado la historia. La ciudad sigue abierta.':all?'Vuelve al teléfono de Los Pistones en El Cruce.':pending?'Contesta cualquiera de los dos teléfonos. Hay una furgoneta en disputa.':'Acércate a un teléfono marcado en el mapa y acepta un encargo.');
       if(goal)set('mission-distance',`${goal.name??'EL CRUCE'} · ${meters} m`);
       if(all){set('mobile-goal-progress','FINAL');set('mobile-goal-text','Vuelve al teléfono P en El Cruce.');}
       if(pending){set('mobile-goal-progress','RADIO');set('mobile-goal-text','Contesta cualquiera de los dos teléfonos.');}
